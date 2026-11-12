@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from 'react'
 import { friendly, isConnectionError, type SeatInfo } from '../lib/api'
 import { useSpectate, useTicker } from '../lib/hooks'
-import { Chips, ErrorScreen, RulesModal, Spinner } from '../components/ui'
+import { Chips, ErrorScreen, PileBadge, RulesModal, Spinner } from '../components/ui'
 import type { StageOpp } from '../components/MatchStage'
 
 const MatchStage = lazy(() => import('../components/MatchStage'))
@@ -68,6 +68,8 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
         <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
       </header>
       <RulesModal forceOpen={rules} onClose={() => setRules(false)} />
+
+      <PileBadge pile={state.pile} />
 
       <ul className="mt-3 flex flex-wrap gap-2" aria-label="참가자 현황">
         {state.seats.map((o) => {

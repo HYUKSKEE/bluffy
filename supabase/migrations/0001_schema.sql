@@ -117,6 +117,23 @@ create table public.card_actions (
 );
 create index card_actions_hand_idx on public.card_actions (hand_id, id);
 
+-- ───────────── 고난이도 모드 ─────────────
+-- 방 옵션 (기존 card_rooms 는 건드리지 않고 별도 테이블로 둔다)
+create table public.card_room_options (
+  room_id uuid primary key references public.card_rooms(id) on delete cascade,
+  hard    boolean not null default false         -- 고난이도: 덱 순환(카운팅)
+);
+
+-- 고난이도 매치의 공용 덱 (서버 전용). 0 은 "셔플 예고 카드".
+create table public.card_match_decks (
+  match_id   uuid primary key references public.card_matches(id) on delete cascade,
+  sets       int not null,                       -- 1~10 한 벌을 몇 세트 합쳤는가
+  deck       int[] not null,                     -- 남은 공용 덱 (맨 앞이 맨 위)
+  shuffle_no int not null default 1,             -- 몇 번째 셔플인가
+  fresh      boolean not null default true,      -- 지금 판이 셔플 직후 첫 판인가 ("셔플 중" 표시)
+  marker_out boolean not null default false      -- 이번 판에 셔플 예고 카드가 나왔는가 (이번 판이 끝나면 셔플)
+);
+
 -- ───────────── RLS + 권한 ─────────────
 -- RLS 를 켜고 정책을 하나도 만들지 않는다 → 클라이언트 역할은 모든 행에 접근 불가.
 -- (security definer 함수는 테이블 소유자 권한으로 실행되어 RLS 를 우회한다.)
@@ -127,15 +144,19 @@ alter table public.card_match_players enable row level security;
 alter table public.card_hands         enable row level security;
 alter table public.card_hand_seats    enable row level security;
 alter table public.card_actions       enable row level security;
+alter table public.card_room_options  enable row level security;
+alter table public.card_match_decks   enable row level security;
 
 -- Supabase 는 새 테이블에 anon/authenticated 권한을 기본 부여한다 → 이 마이그레이션이 만든 card_ 테이블만 회수.
 -- (기존 객체(다른 게임의 테이블/함수/시퀀스)는 절대 건드리지 않는다. identity 시퀀스는 테이블 권한을 따른다.)
 -- 특히 card_hands(deck)와 card_hand_seats(cards)는 어떤 권한/정책으로도 열리지 않는다.
 revoke all on
   public.card_rooms, public.card_players, public.card_matches, public.card_match_players,
-  public.card_hands, public.card_hand_seats, public.card_actions
+  public.card_hands, public.card_hand_seats, public.card_actions,
+  public.card_room_options, public.card_match_decks
 from public;
 revoke all on
   public.card_rooms, public.card_players, public.card_matches, public.card_match_players,
-  public.card_hands, public.card_hand_seats, public.card_actions
+  public.card_hands, public.card_hand_seats, public.card_actions,
+  public.card_room_options, public.card_match_decks
 from anon, authenticated;

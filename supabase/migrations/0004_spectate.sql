@@ -90,7 +90,8 @@ begin
     'seats', v_seats,
     'hand', v_hand,
     'actions', v_actions,
-    'seat_cards', v_cards);
+    'seat_cards', v_cards,
+    'pile', card_game.deck_info(m.id));
 end $$;
 
 -- 이 파일의 함수 두 개에만 권한을 준다 (다른 객체의 권한은 건드리지 않음)

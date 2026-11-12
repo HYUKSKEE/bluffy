@@ -194,6 +194,18 @@ begin
 end $$;
 
 -- ───────────── 판 시작: 덱 섞기 + 배분 + 기본 판돈 ─────────────
+-- 고난이도 덱 정보(공개 가능한 것만): 남은 장수, 셔플 횟수, 셔플 직후 여부, 셔플 예고 카드 등장 여부. 카드 값은 없다.
+create function card_game.deck_info(p_match uuid)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce((
+    select jsonb_build_object(
+             'hard', true, 'sets', d.sets, 'total', d.sets * 10,
+             'remaining', (select count(*) from unnest(d.deck) x where x <> 0),
+             'shuffle_no', d.shuffle_no, 'fresh', d.fresh, 'marker_out', d.marker_out)
+      from card_match_decks d where d.match_id = p_match
+  ), jsonb_build_object('hard', false));
+$$;
+
 create function card_game.start_hand(p_match uuid)
 returns uuid language plpgsql security definer set search_path = public as $$
 declare
@@ -208,6 +220,14 @@ declare
   v_actors int;
   v_antes int;
   v_level int;
+  v_hard boolean;
+  d card_match_decks%rowtype;
+  v_all int[];
+  v_deal int[] := '{}';
+  v_c int;
+  v_real int;
+  v_reshuffle boolean := false;
+  v_marker boolean := false;
 begin
   select * into m from card_matches where id = p_match for update;
   v_no := m.hand_no + 1;
@@ -220,9 +240,46 @@ begin
   end if;
   v_lead := v_alive[((v_no - 1) % v_n) + 1];   -- 선은 판마다 한 칸씩 이동 (칩이 남은 사람 기준)
 
-  -- 1~10 두 벌을 CSPRNG(gen_random_uuid)로 섞는다
-  select array_agg(n order by gen_random_uuid()) into v_deck
-    from (select (i % 10) + 1 as n from generate_series(0, 19) i) s;
+  select coalesce(o.hard, false) into v_hard from card_rooms r left join card_room_options o on o.room_id = r.id where r.id = m.room_id;
+
+  if v_hard then
+    -- 고난이도: 매치 내내 공용 덱을 이어서 쓴다. 셔플은 (1) 첫 판 (2) 남은 카드가 모자랄 때 (3) 셔플 예고 카드가 나온 판 다음에만.
+    select * into d from card_match_decks where match_id = p_match for update;
+    if not found then
+      -- 필요 세트 수 = 인원 × 2장 × 3라운드 ÷ 10 (올림)
+      insert into card_match_decks (match_id, sets, deck, shuffle_no, fresh, marker_out)
+      values (p_match, ceil(v_n * 2 * 3 / 10.0)::int, '{}', 0, true, false) returning * into d;
+      v_reshuffle := true;
+    else
+      select count(*) into v_real from unnest(d.deck) x where x <> 0;
+      v_reshuffle := d.marker_out or v_real < 2 * v_n;
+    end if;
+    if v_reshuffle then
+      -- 남은 카드와 버린 카드를 모두 합쳐(공개 없이) 다시 섞고, 아래에서 1라운드 분량 위치에 셔플 예고 카드(0)를 끼운다.
+      select array_agg(n order by gen_random_uuid()) into v_all
+        from (select (i % 10) + 1 as n from generate_series(0, d.sets * 10 - 1) i) s;
+      v_all := v_all[1 : cardinality(v_all) - 2 * v_n] || array[0] || v_all[cardinality(v_all) - 2 * v_n + 1 :];
+      d.deck := v_all;
+      d.shuffle_no := d.shuffle_no + 1;
+      d.fresh := true;
+    else
+      d.fresh := false;
+    end if;
+    d.marker_out := false;
+    -- 위에서부터 2장씩 나눠 준다. 예고 카드가 나오면 옆으로 빼두고(이번 판이 끝나면 셔플) 다음 카드를 이어서 뽑는다.
+    while cardinality(v_deal) < 2 * v_n loop
+      v_c := d.deck[1];
+      d.deck := d.deck[2:];
+      if v_c = 0 then d.marker_out := true; else v_deal := v_deal || v_c; end if;
+    end loop;
+    update card_match_decks set deck = d.deck, shuffle_no = d.shuffle_no, fresh = d.fresh, marker_out = d.marker_out
+     where match_id = p_match;
+    v_deck := v_deal;
+  else
+    -- 일반: 판마다 1~10 두 벌을 CSPRNG(gen_random_uuid)로 새로 섞는다
+    select array_agg(n order by gen_random_uuid()) into v_deck
+      from (select (i % 10) + 1 as n from generate_series(0, 19) i) s;
+  end if;
 
   -- 기본 판돈(앤티) = 판 번호 (1판 1칩, 2판 2칩, ... 10판 10칩). 칩이 모자라면 가진 칩 전부.
   -- 계속 다이만 해도 앤티가 쌓여서, 초반에 크게 이긴 사람이 숨어서 이기는 것을 막는다.

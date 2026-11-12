@@ -2,7 +2,7 @@ import { lazy, Suspense, useMemo, useState } from 'react'
 import { api, friendly, isConnectionError, type MatchState, type SeatInfo, type VisibleHand } from '../lib/api'
 import { useMatch, useTicker } from '../lib/hooks'
 import { anteFor, legalFor, TURN_SECONDS } from '../game/rules'
-import { Chips, ErrorScreen, Modal, RulesModal, Spinner } from '../components/ui'
+import { Chips, ErrorScreen, Modal, PileBadge, RulesModal, Spinner } from '../components/ui'
 import type { StageCard, StageOpp } from '../components/MatchStage'
 import TableWaiting from './TableWaiting'
 
@@ -139,6 +139,8 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
         <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
       </header>
       <RulesModal forceOpen={rules} onClose={() => setRules(false)} />
+
+      <PileBadge pile={state.pile} />
 
       {/* 상대 요약 */}
       <ul className="mt-3 flex flex-wrap gap-2" aria-label="상대 현황">

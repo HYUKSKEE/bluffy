@@ -25,12 +25,17 @@ export interface RankRow {
 }
 
 export interface RoomView {
-  room: { id: string; title: string; mode: Mode; status: 'open' | 'closed'; created_at: string; closed_at: string | null }
+  room: { id: string; title: string; mode: Mode; status: 'open' | 'closed'; created_at: string; closed_at: string | null; hard: boolean }
   participants: number
   active_matches: number
   waiting_tables: number
   ranking: RankRow[]
 }
+
+/** 고난이도(덱 순환) 정보. 카드 값은 없고 장수/셔플 상태만 공개된다. */
+export type DeckInfo =
+  | { hard: false }
+  | { hard: true; sets: number; total: number; remaining: number; shuffle_no: number; fresh: boolean; marker_out: boolean }
 
 export interface SeatInfo {
   seat: number
@@ -85,6 +90,7 @@ export interface MatchState {
     revealed: boolean
     result: HandResult | null
   }
+  pile: DeckInfo
   actions: { id: number; seat: number; player_id: string; action: 'check' | 'bet' | 'raise' | 'call' | 'die'; amount: number; auto: boolean; created_at: string }[]
 }
 
@@ -194,8 +200,8 @@ async function rpc<T>(fn: string, args?: Record<string, unknown>): Promise<T> {
 
 // ───────────── RPC 래퍼 ─────────────
 export const api = {
-  createRoom: (title: string, mode: Mode) =>
-    rpc<{ room_id: string; admin_token: string }>('card_create_room', { p_title: title, p_mode: mode }),
+  createRoom: (title: string, mode: Mode, hard = false) =>
+    rpc<{ room_id: string; admin_token: string }>('card_create_room_ex', { p_title: title, p_mode: mode, p_hard: hard }),
   getRoomView: (roomId: string) => rpc<RoomView>('card_get_room_view', { p_room_id: roomId }),
   joinRoom: (roomId: string, nickname: string) => rpc<PlayerSelf>('card_join_room', { p_room_id: roomId, p_nickname: nickname }),
   myStatus: (roomId: string) => rpc<{ player: PlayerSelf | null; match_id: string | null }>('card_my_status', { p_room_id: roomId }),

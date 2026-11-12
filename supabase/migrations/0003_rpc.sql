@@ -19,6 +19,16 @@ begin
   return jsonb_build_object('room_id', v_id, 'admin_token', v_token);
 end $$;
 
+-- 고난이도(덱 순환) 옵션을 함께 정하는 방 만들기. card_create_room 을 그대로 호출한 뒤 옵션 행만 추가한다.
+create function public.card_create_room_ex(p_title text, p_mode text, p_hard boolean default false)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_res jsonb := public.card_create_room(p_title, p_mode);
+begin
+  insert into card_room_options (room_id, hard) values ((v_res->>'room_id')::uuid, coalesce(p_hard, false));
+  return v_res;
+end $$;
+
 -- 방 정보 + 랭킹 (링크를 아는 사람에게 공개). uid 는 노출하지 않는다.
 create function public.card_get_room_view(p_room_id uuid)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
@@ -30,7 +40,8 @@ begin
   if not found then raise exception 'ROOM_NOT_FOUND'; end if;
   return jsonb_build_object(
     'room', jsonb_build_object('id', r.id, 'title', r.title, 'mode', r.mode, 'status', r.status,
-                               'created_at', r.created_at, 'closed_at', r.closed_at),
+                               'created_at', r.created_at, 'closed_at', r.closed_at,
+                               'hard', coalesce((select o.hard from card_room_options o where o.room_id = r.id), false)),
     'participants', (select count(*) from card_players where room_id = r.id),
     'active_matches', (select count(*) from card_matches where room_id = r.id and status = 'playing'),
     'waiting_tables', (select count(*) from card_matches where room_id = r.id and status = 'waiting'),
@@ -328,7 +339,8 @@ begin
       'host_player_id', m.host_player_id, 'end_reason', m.end_reason, 'next_hand_at', m.next_hand_at),
     'seats', v_seats,
     'hand', v_hand,
-    'actions', v_actions);
+    'actions', v_actions,
+    'pile', card_game.deck_info(m.id));
 end $$;
 
 -- ───────────── 행동 ─────────────
@@ -503,6 +515,7 @@ end $$;
 -- 스키마 전체에 대한 revoke/grant 는 쓰지 않는다 (같은 프로젝트의 다른 게임 RPC 를 건드리지 않기 위함).
 revoke execute on function
   public.card_create_room(text, text),
+  public.card_create_room_ex(text, text, boolean),
   public.card_get_room_view(uuid),
   public.card_join_room(uuid, text),
   public.card_my_status(uuid),
@@ -521,6 +534,7 @@ from public, anon, authenticated;
 
 grant execute on function
   public.card_create_room(text, text),
+  public.card_create_room_ex(text, text, boolean),
   public.card_get_room_view(uuid),
   public.card_join_room(uuid, text),
   public.card_my_status(uuid),

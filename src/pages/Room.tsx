@@ -88,7 +88,7 @@ export default function Room() {
         <form onSubmit={join} className="jelly-panel animate-pop mt-6 p-5">
           <p className="mb-1 text-sm text-blue-soft">초대받은 방</p>
           <h1 className="mb-1 text-3xl">{room.title}</h1>
-          <p className="mb-5"><span className={`tag ${room.mode === 'B' ? 'tag-red' : ''}`}>{room.mode === 'A' ? 'A 모드 · 반공개' : 'B 모드 · 눈치'}</span><span className="ml-2 text-sm text-muted">{view.participants}명 참가 중</span></p>
+          <p className="mb-5"><span className={`tag ${room.mode === 'B' ? 'tag-red' : ''}`}>{room.mode === 'A' ? 'A 모드 · 반공개' : 'B 모드 · 눈치'}</span>{room.hard && <span className="tag tag-red ml-1">고난이도</span>}<span className="ml-2 text-sm text-muted">{view.participants}명 참가 중</span></p>
           <label htmlFor="nick" className="mb-2 block">닉네임</label>
           <input id="nick" className="field mb-4" maxLength={12} placeholder="최대 12자" value={nick} onChange={(e) => setNick(e.target.value)} autoComplete="nickname" autoFocus />
           {msg && <p role="alert" className="mb-3 rounded-2xl bg-red/20 px-4 py-3 text-red-soft">{msg}</p>}
@@ -127,6 +127,7 @@ export default function Room() {
       <section className="jelly-panel mt-4 p-5">
         <div className="mb-1 flex flex-wrap items-center gap-2">
           <span className={`tag ${room.mode === 'B' ? 'tag-red' : ''}`}>{room.mode} 모드</span>
+          {room.hard && <span className="tag tag-red">고난이도</span>}
           <span className="text-sm text-muted">{view.participants}명 · 대결 {view.active_matches}건 진행 중</span>
         </div>
         <h1 className="mb-4 text-3xl">{room.title}</h1>

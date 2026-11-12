@@ -36,7 +36,7 @@ describe('다른 게임과 공존', () => {
   it('이 프로젝트가 만든 객체는 전부 card_ 접두어를 쓴다', async () => {
     const db = await createDb(LEGACY)
     const t = await sql(db, `select table_name from information_schema.tables where table_schema='public' and table_name like 'card\\_%' order by 1`)
-    expect(t.rows.map((r: any) => r.table_name)).toEqual(['card_actions', 'card_hand_seats', 'card_hands', 'card_match_players', 'card_matches', 'card_players', 'card_rooms'])
+    expect(t.rows.map((r: any) => r.table_name)).toEqual(['card_actions', 'card_hand_seats', 'card_hands', 'card_match_decks', 'card_match_players', 'card_matches', 'card_players', 'card_room_options', 'card_rooms'])
     const ours = await sql(db, `select proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and proname not like 'card\\_%' and proname not in ('act','heartbeat','create_room') and proname not like 'gen\\_%'`)
     expect(ours.rows).toEqual([]) // 접두어 없는 새 함수가 없다
     const idx = await sql(db, `select indexname from pg_indexes where schemaname='public' and tablename like 'card\\_%' and indexname not like 'card\\_%'`)

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import type { DeckInfo } from '../lib/api'
 
 export function Coin({ className = '' }: { className?: string }) {
   return <span className={`coin ${className}`} aria-hidden />
@@ -67,6 +68,9 @@ export function RulesBody() {
         <br />
         <span className="tag tag-red mr-1.5">B 모드</span>모든 상대의 카드 2장이 보여요. 내 카드만 몰라요!
       </li>
+      <li>
+        <span className="tag tag-red mr-1.5">고난이도</span>덱을 섞지 않고 이어서 써요! 쓴 카드는 버린 더미로 가서 다시 볼 수 없으니 <b className="font-normal">공개된 패를 기억</b>하세요. 남은 장수는 보여요. 덱이 모자라거나 <b className="font-normal">셔플 예고 카드</b>가 나오면 그 판이 끝난 뒤 모두 섞고, 새 덱 첫 판엔 &quot;셔플 중&quot; 표시가 떠요.
+      </li>
       <li className="text-sm text-muted">한 판이 끝나면 그 판에 참여한 모두의 패가 공개돼요. 칩은 가상이며 무료예요. 현금·경품과 무관해요.</li>
     </ul>
   )
@@ -118,6 +122,19 @@ export function CopyButton({ text, label, className = '' }: { text: string; labe
     <button className={`candy candy-sm ${done ? 'candy-blue' : 'candy-dark'} ${className}`} onClick={copy}>
       {done ? '복사했어요!' : label}
     </button>
+  )
+}
+
+/** 고난이도: 공용 덱 상태 표시 (남은 장수, 셔플 횟수, "셔플 중", 셔플 예고 카드) */
+export function PileBadge({ pile }: { pile: DeckInfo }) {
+  if (!pile.hard) return null
+  return (
+    <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-sm" aria-label="공용 덱 상태">
+      <span className="tag">🂠 덱 {pile.remaining}/{pile.total}장</span>
+      <span className="text-muted">{pile.shuffle_no}번째 셔플</span>
+      {pile.fresh && <span className="tag tag-red animate-pulse">셔플 중! 새 덱 첫 판</span>}
+      {pile.marker_out && <span className="tag tag-red animate-bounceY">예고 카드 등장 · 이 판이 끝나면 셔플</span>}
+    </div>
   )
 }
 

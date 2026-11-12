@@ -12,6 +12,7 @@ export default function Create() {
   const nav = useNavigate()
   const [title, setTitle] = useState('')
   const [mode, setMode] = useState<Mode>('A')
+  const [hard, setHard] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [conn, setConn] = useState(false)
@@ -22,7 +23,7 @@ export default function Create() {
     setBusy(true)
     setErr(null)
     try {
-      const r = await api.createRoom(title.trim(), mode)
+      const r = await api.createRoom(title.trim(), mode, hard)
       saveAdminToken(r.room_id, r.admin_token)
       setMade({ roomId: r.room_id, token: r.admin_token })
     } catch (e2) {
@@ -95,6 +96,15 @@ export default function Create() {
             })}
           </div>
         </fieldset>
+
+        <label className={`jelly-panel block cursor-pointer p-4 ${hard ? 'ring-4 ring-gold -translate-y-1' : 'opacity-80'}`}>
+          <div className="flex items-center justify-between">
+            <b className="text-xl font-normal text-gold">고난이도 · 덱 순환</b>
+            <input type="checkbox" className="h-6 w-6 accent-[#ffc94d]" checked={hard} onChange={(e) => setHard(e.target.checked)} aria-label="고난이도 모드" />
+          </div>
+          <p className="mb-1 text-sm text-ink">쓴 카드를 기억하는 카운팅 게임</p>
+          <p className="text-sm leading-relaxed text-muted">덱을 매 판 섞지 않고 이어서 써요. 쓴 카드는 다시 볼 수 없고 남은 장수만 보여요. 덱이 바닥나기 전 &quot;셔플 예고 카드&quot;가 나오면 그 판 뒤에 새로 섞어요.</p>
+        </label>
 
         {err && <p role="alert" className="rounded-2xl bg-red/20 px-4 py-3 text-red-soft">{err}</p>}
         <button className="candy w-full text-xl" disabled={busy || title.trim().length === 0}>
