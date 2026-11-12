@@ -206,6 +206,8 @@ declare
   v_hand uuid;
   v_i int;
   v_actors int;
+  v_antes int;
+  v_level int;
 begin
   select * into m from card_matches where id = p_match for update;
   v_no := m.hand_no + 1;
@@ -222,20 +224,26 @@ begin
   select array_agg(n order by gen_random_uuid()) into v_deck
     from (select (i % 10) + 1 as n from generate_series(0, 19) i) s;
 
+  -- 기본 판돈(앤티) = 판 번호 (1판 1칩, 2판 2칩, ... 10판 10칩). 칩이 모자라면 가진 칩 전부.
+  -- 계속 다이만 해도 앤티가 쌓여서, 초반에 크게 이긴 사람이 숨어서 이기는 것을 막는다.
+  select coalesce(sum(least(chips, v_no)), 0), coalesce(max(least(chips, v_no)), 0) into v_antes, v_level
+    from card_match_players where match_id = p_match and seat = any (v_alive);
+
   insert into card_hands (match_id, hand_no, deck, pot, carry_in, level, lead_seat)
-  values (p_match, v_no, v_deck, m.carry + v_n, m.carry, 1, v_lead)
+  values (p_match, v_no, v_deck, m.carry + v_antes, m.carry, v_level, v_lead)
   returning id into v_hand;
 
   for v_i in 1..v_n loop
     insert into card_hand_seats (hand_id, seat, cards, open_idx, in_hand, committed)
     values (v_hand, v_alive[v_i], array[v_deck[2 * v_i - 1], v_deck[2 * v_i]],
-            1 + (get_byte(uuid_send(gen_random_uuid()), 15) & 1), true, 1);
+            1 + (get_byte(uuid_send(gen_random_uuid()), 15) & 1), true,
+            (select least(chips, v_no) from card_match_players where match_id = p_match and seat = v_alive[v_i]));
   end loop;
 
-  update card_match_players set chips = chips - 1 where match_id = p_match and seat = any (v_alive);
+  update card_match_players set chips = chips - least(chips, v_no) where match_id = p_match and seat = any (v_alive);
   update card_matches set hand_no = v_no, carry = 0, next_hand_at = null where id = p_match;
 
-  -- 기본 판돈을 내고도 칩이 남은 사람만 행동할 수 있다. 행동할 사람이 1명 이하면 베팅 없이 쇼다운.
+  -- 앤티를 내고도 칩이 남은 사람만 행동할 수 있다. 행동할 사람이 1명 이하면 베팅 없이 쇼다운.
   update card_hand_seats hs set pending = (mp.chips > 0)
     from card_match_players mp
    where hs.hand_id = v_hand and mp.match_id = p_match and mp.seat = hs.seat;

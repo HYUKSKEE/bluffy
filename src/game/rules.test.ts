@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  applyAction, buildDeck, compareHands, compareRank, deal, evaluate, forfeitSeat, leadSeat, legalActions,
+  anteFor, applyAction, buildDeck, compareHands, compareRank, deal, evaluate, forfeitSeat, leadSeat, legalActions,
   matchOutcome, matchProfit, matchWinners, potOf, settleFold, settleShowdown, shuffle, startHand, timeoutAction,
   toCall, type Action, type Cards, type HandEnd, type HandState,
 } from './rules'
@@ -56,6 +56,27 @@ describe('덱 / 배분', () => {
     expect(cards).toHaveLength(5)
     expect(rest).toHaveLength(10)
     expect(cards[2]).toEqual([5, 6])
+  })
+})
+
+describe('앤티 = 판 번호', () => {
+  it('판 번호만큼 앤티를 낸다', () => {
+    const { state } = startHand([100, 100, 100], 0, 0, 7)
+    expect(chipsOf(state)).toEqual([93, 93, 93])
+    expect(potOf(state)).toBe(21)
+    expect(state.level).toBe(7)
+  })
+  it('칩이 모자라면 가진 칩 전부를 앤티로 내고 올인', () => {
+    const { state } = startHand([100, 4, 100], 0, 0, 6)
+    expect(chipsOf(state)).toEqual([94, 0, 94])
+    expect(state.seats[1].committed).toBe(4)
+    expect(state.seats[1].pending).toBe(false)
+    expect(state.level).toBe(6)
+  })
+  it('계속 다이만 하면 10판 동안 55칩을 잃는다 (숨어서 이기기 방지)', () => {
+    let total = 0
+    for (let n = 1; n <= 10; n++) total += anteFor(n)
+    expect(total).toBe(55)
   })
 })
 

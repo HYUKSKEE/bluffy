@@ -27,6 +27,13 @@ describe.each(['A', 'B'] as const)('관전 — %s 모드', (mode) => {
       expect(row.cards).toEqual(truth.rows.find((x: any) => x.seat === row.seat).cards)
     }
     expect(JSON.stringify(st)).not.toMatch(/deck/) // 남은 덱은 보내지 않는다
+
+    // 공개/비공개 구분: A 는 서버가 정한 공개 위치(1|2)를, B 는 null 을 준다
+    const open = await sql(db, 'select seat, open_idx from card_hand_seats where hand_id = $1', [st.hand.id])
+    for (const row of st.seat_cards) {
+      if (mode === 'A') expect(row.open).toBe(open.rows.find((x: any) => x.seat === row.seat).open_idx)
+      else expect(row.open).toBeNull()
+    }
   })
 
   it('다이한 사람의 카드도 판이 끝날 때까지 보이고, 탈락 좌석은 빠진다', async () => {

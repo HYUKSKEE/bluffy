@@ -60,7 +60,7 @@ export function RulesBody() {
     <ul className="space-y-2.5 text-[1.02rem] leading-snug">
       <li><span className="tag mr-1.5">테이블</span>2~5명이 한 테이블! 방장이 마음대로 시작할 수 있어요. (5명이면 자동 시작)</li>
       <li><span className="tag tag-red mr-1.5">족보</span>카드 1~10을 2장씩 받아요. 페어(같은 숫자) &gt; 합이 큰 쪽. 페어끼리는 큰 숫자가 이겨요. 승부에 남은 사람 중 최고 족보가 판돈을 가져가요.</li>
-      <li><span className="tag mr-1.5">베팅</span>기본 1칩씩 걸고 시작! 체크 · 베팅/레이즈(1~3칩, 판당 3번) · 콜 · 다이(포기). 한 번에 20초.</li>
+      <li><span className="tag mr-1.5">베팅</span>판마다 기본 판돈(앤티)을 걸고 시작! 앤티는 판 번호만큼이에요(1판 1칩 … 10판 10칩). 계속 다이만 해도 칩이 줄어요. 체크 · 베팅/레이즈(1~3칩, 판당 3번) · 콜 · 다이(포기). 한 번에 20초.</li>
       <li><span className="tag tag-red mr-1.5">매치</span>시작 칩 100개, 최대 10판. 칩이 바닥나면 탈락, 한 명만 남으면 끝. 최종 칩 − 100이 내 수익이에요.</li>
       <li>
         <span className="tag mr-1.5">A 모드</span>내 카드 2장 + 각 상대의 공개 카드 1장이 보여요.

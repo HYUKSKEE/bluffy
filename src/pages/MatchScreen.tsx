@@ -1,8 +1,8 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { api, friendly, isConnectionError, type MatchState, type SeatInfo, type VisibleHand } from '../lib/api'
 import { useMatch, useTicker } from '../lib/hooks'
-import { legalFor, TURN_SECONDS } from '../game/rules'
-import { Chips, ErrorScreen, Modal, Spinner } from '../components/ui'
+import { anteFor, legalFor, TURN_SECONDS } from '../game/rules'
+import { Chips, ErrorScreen, Modal, RulesModal, Spinner } from '../components/ui'
 import type { StageCard, StageOpp } from '../components/MatchStage'
 import TableWaiting from './TableWaiting'
 
@@ -37,6 +37,7 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [leaving, setLeaving] = useState(false)
+  const [rules, setRules] = useState(false)
   useTicker(200) // 타이머 막대 갱신
 
   const v = useMemo(() => {
@@ -133,10 +134,11 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
         <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setLeaving(true)} disabled={over}>나가기</button>
         <div className="text-center text-sm text-muted">
           <span className={`tag ${m.mode === 'B' ? 'tag-red' : ''}`}>{m.mode} 모드</span>
-          <span className="ml-2">{Math.max(1, m.hand_no)} / {m.max_hands} 판 · {state.seats.filter((s) => !s.left).length}명</span>
+          <span className="ml-2">{Math.max(1, m.hand_no)} / {m.max_hands} 판 · 앤티 {anteFor(Math.max(1, m.hand_no))} · {state.seats.filter((s) => !s.left).length}명</span>
         </div>
-        <span className="w-[72px]" />
+        <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
       </header>
+      <RulesModal forceOpen={rules} onClose={() => setRules(false)} />
 
       {/* 상대 요약 */}
       <ul className="mt-3 flex flex-wrap gap-2" aria-label="상대 현황">

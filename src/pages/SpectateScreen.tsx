@@ -1,7 +1,7 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { friendly, isConnectionError, type SeatInfo } from '../lib/api'
 import { useSpectate, useTicker } from '../lib/hooks'
-import { Chips, ErrorScreen, Spinner } from '../components/ui'
+import { Chips, ErrorScreen, RulesModal, Spinner } from '../components/ui'
 import type { StageOpp } from '../components/MatchStage'
 
 const MatchStage = lazy(() => import('../components/MatchStage'))
@@ -13,6 +13,7 @@ const short = (s: string) => (s.length > 7 ? s.slice(0, 7) + '…' : s)
 export default function SpectateScreen({ matchId, onExit }: { matchId: string; onExit: () => void }) {
   const { state, error, refresh } = useSpectate(matchId)
   useTicker(500)
+  const [rules, setRules] = useState(false)
 
   if (error && !state) {
     return isConnectionError(error)
@@ -28,17 +29,22 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
   const over = m.status === 'finished' || m.status === 'void'
   const res = h?.result ?? null
   const winnerSeats = new Set(res?.winners.map((w) => w.seat) ?? [])
-  const shown = new Map(state.seat_cards.map((c) => [c.seat, c.cards]))
+  const shown = new Map(state.seat_cards.map((c) => [c.seat, c]))
+  const tagsOn = !h?.revealed // 판이 끝나 패가 공개되면 구분 표식은 필요 없다
   const nameOfSeat = (seat: number) => state.seats.find((s) => s.seat === seat)?.nickname ?? '?'
 
   const stageOpps: StageOpp[] = state.seats.map((o) => {
     const out = !o.in_hand || o.left
     const tail = o.left ? ' 나감' : !o.in_hand ? ' 탈락' : o.folded ? ' 다이' : ''
-    const cards = shown.get(o.seat)
+    const sc = shown.get(o.seat)
     return {
       id: o.player_id,
       label: `${short(o.nickname)} · ${o.chips}${tail}`,
-      cards: out ? [] : [0, 1].map((i) => ({ value: cards?.[i] ?? null })),
+      cards: out ? [] : [0, 1].map((i) => ({
+            value: sc?.cards[i] ?? null,
+            // A: 상대에게 공개된 카드 / 본인만 아는 카드, B: 본인만 모르는 카드
+            tag: !tagsOn || !sc ? null : m.mode === 'B' ? '본인 모름' : sc.open === i + 1 ? '공개' : '비공개',
+          })),
       folded: o.folded,
       out,
       active: Boolean(betting && h!.turn_seat === o.seat),
@@ -57,10 +63,11 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
         <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={onExit}>나가기</button>
         <div className="text-center text-sm text-muted">
           <span className="tag">👀 관전 중</span>
-          <span className="ml-2">{Math.max(1, m.hand_no)} / {m.max_hands} 판 · {state.seats.filter((s) => !s.left).length}명</span>
+          <span className="ml-2">{Math.max(1, m.hand_no)} / {m.max_hands} 판 · 앤티 {Math.max(1, m.hand_no)} · {state.seats.filter((s) => !s.left).length}명</span>
         </div>
-        <span className="w-[72px]" />
+        <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
       </header>
+      <RulesModal forceOpen={rules} onClose={() => setRules(false)} />
 
       <ul className="mt-3 flex flex-wrap gap-2" aria-label="참가자 현황">
         {state.seats.map((o) => {
@@ -104,6 +111,11 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
         <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-xs text-muted">
           관전자는 모든 카드를 볼 수 있어요 — 참가자에게 알려주면 안 돼요!
         </p>
+        {tagsOn && h && (
+          <p className="pointer-events-none absolute bottom-6 left-0 right-0 text-center text-[11px] text-muted">
+            {m.mode === 'A' ? '공개 = 상대들도 보는 카드 · 비공개 = 주인만 아는 카드' : '본인 모름 = 상대들은 보지만 주인은 모르는 카드'}
+          </p>
+        )}
       </section>
 
       <ul className="mb-2 min-h-[4rem] space-y-0.5 text-sm text-muted" aria-live="polite">

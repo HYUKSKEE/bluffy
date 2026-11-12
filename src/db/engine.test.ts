@@ -321,7 +321,7 @@ describe('판 결과 / 사이드 팟 / 이월', () => {
     await skipPause(t.matchId)
     expect((await rpc(db, t.ua, 'advance_match', t.matchId)).result).toBe('started')
     const n = await state(t)
-    expect(n.hand).toMatchObject({ hand_no: 2, pot: 3 })
+    expect(n.hand).toMatchObject({ hand_no: 2, pot: 5 }) // 앤티 2 × 2명 + 이월 1
     expect(n.match.carry).toBe(0)
     expect(n.seats.reduce((a: number, s: any) => a + s.chips, 0) + n.hand.pot).toBe(201)
   })
@@ -632,7 +632,7 @@ describe('TS 규칙 엔진과 SQL 엔진 교차 검증 (무작위 플레이)', (
           currentHand = st.hand.id
           const pre = st.seats.map((s: any) => (s.in_hand ? s.chips + s.committed : s.chips))
           const carryIn = (await sql(db, 'select carry_in from card_hands where id = $1', [st.hand.id])).rows[0].carry_in
-          const started = startHand(pre, carryIn, st.hand.lead_seat - 1)
+          const started = startHand(pre, carryIn, st.hand.lead_seat - 1, st.hand.hand_no)
           shadow = started.state
           shadowEnd = started.end
           expect(st.hand.lead_seat - 1).toBe(leadSeat(st.hand.hand_no, pre))

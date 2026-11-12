@@ -1,6 +1,7 @@
 -- 0004: 관전 (읽기 전용)
 -- 새 함수만 추가한다. 기존 card_* 함수/테이블/다른 게임 객체는 건드리지 않는다.
 --
+-- seat_cards[].open: A 모드에서 상대에게 공개되는 카드의 위치(1|2). B 모드는 null(참가자 본인만 자기 카드를 모른다).
 -- 관전자가 보는 것: 좌석·칩·판돈·차례·행동 로그 + "이번 판에 참여 중인 모든 좌석의 카드"(seat_cards).
 -- 관전자는 참가자가 아니므로 행동할 수 없다. (주의: 관전자가 참가자에게 카드를 몰래 알려주면 부정행위가 되므로
 --  README 의 '관전' 항목에 이 점을 명시했다.)
@@ -62,7 +63,8 @@ begin
              'id', a.id, 'seat', a.seat, 'player_id', a.player_id, 'action', a.action, 'amount', a.amount,
              'auto', a.auto, 'created_at', a.created_at) order by a.id), '[]'::jsonb)
       into v_actions from card_actions a where a.hand_id = h.id;
-    select coalesce(jsonb_agg(jsonb_build_object('seat', hs.seat, 'cards', to_jsonb(hs.cards)) order by hs.seat), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('seat', hs.seat, 'cards', to_jsonb(hs.cards),
+                                                       'open', case when r.mode = 'A' then hs.open_idx end) order by hs.seat), '[]'::jsonb)
       into v_cards from card_hand_seats hs where hs.hand_id = h.id and hs.in_hand;
   end if;
 

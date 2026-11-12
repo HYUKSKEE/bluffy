@@ -12,7 +12,8 @@ export const START_CHIPS = 100
 export const MAX_HANDS = 10
 export const MIN_PLAYERS = 2
 export const MAX_PLAYERS = 5
-export const ANTE = 1
+/** 기본 판돈(앤티) = 판 번호: 1판 1칩 ... 10판 10칩. 계속 다이만 해서 이기는 전략을 막는다. */
+export const anteFor = (handNo: number) => Math.max(1, handNo)
 export const MAX_RAISES = 3
 export const MAX_RAISE_AMOUNT = 3
 export const TURN_SECONDS = 20
@@ -137,18 +138,20 @@ function resolve(seats: SeatState[], from: number, inclusive: boolean): { turn: 
 }
 
 /**
- * 판 시작: 칩이 있는 사람이 기본 판돈 1칩씩. 선(lead)부터 행동.
- * 기본 판돈을 내고도 칩이 남은 사람이 1명 이하면 베팅 없이 곧바로 쇼다운.
+ * 판 시작: 칩이 있는 사람이 앤티(= 판 번호, 모자라면 가진 칩 전부)를 내고 선부터 행동.
+ * 앤티를 내고도 칩이 남은 사람이 1명 이하면 베팅 없이 곧바로 쇼다운.
  */
-export function startHand(chips: readonly number[], carry: number, lead: number): { state: HandState; end: HandEnd | null } {
-  const seats: SeatState[] = chips.map((c) =>
-    c > 0
-      ? { chips: c - ANTE, committed: ANTE, inHand: true, folded: false, pending: c - ANTE > 0 }
-      : { chips: 0, committed: 0, inHand: false, folded: false, pending: false },
-  )
+export function startHand(chips: readonly number[], carry: number, lead: number, handNo = 1): { state: HandState; end: HandEnd | null } {
+  const ante = anteFor(handNo)
+  const seats: SeatState[] = chips.map((c) => {
+    if (c <= 0) return { chips: 0, committed: 0, inHand: false, folded: false, pending: false }
+    const pay = Math.min(c, ante)
+    return { chips: c - pay, committed: pay, inHand: true, folded: false, pending: c - pay > 0 }
+  })
   if (seats.filter((x) => x.pending).length <= 1) seats.forEach((x) => (x.pending = false))
+  const level = Math.max(0, ...seats.map((x) => x.committed))
   const { turn, end } = resolve(seats, lead, true)
-  return { state: { seats, carryIn: carry, level: ANTE, raiseCount: 0, turn }, end }
+  return { state: { seats, carryIn: carry, level, raiseCount: 0, turn }, end }
 }
 
 /** 선: 판마다 한 칸씩 이동 (칩이 남은 사람 기준). handNo 는 1부터. */

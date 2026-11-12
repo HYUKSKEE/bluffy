@@ -91,7 +91,7 @@ export interface MatchState {
 /** 관전용 상태: 이번 판 참여 좌석의 카드 포함 */
 export type SpectateState = Omit<MatchState, 'my_seat'> & {
   my_seat: null
-  seat_cards: { seat: number; cards: number[] }[]
+  seat_cards: { seat: number; cards: number[]; open: 1 | 2 | null }[]
 }
 
 export interface TableInfo {
