@@ -7,5 +7,5 @@
   <rect width="1200" height="630" fill="url(#bg)"/>
   <g transform="rotate(-10 380 330)"><rect x="240" y="110" width="280" height="400" rx="46" fill="url(#r)"/><rect x="262" y="132" width="236" height="356" rx="34" fill="#fff0f3"/><text x="380" y="380" font-size="220" text-anchor="middle" fill="#c4143a" font-family="sans-serif" font-weight="900">9</text></g>
   <g transform="rotate(10 820 330)"><rect x="680" y="110" width="280" height="400" rx="46" fill="url(#b)"/><rect x="702" y="132" width="236" height="356" rx="34" fill="#eef7ff"/><text x="820" y="380" font-size="220" text-anchor="middle" fill="#1b5fd1" font-family="sans-serif" font-weight="900">?</text></g>
-  <text x="600" y="590" font-size="64" text-anchor="middle" fill="#ffffff" font-family="sans-serif" font-weight="900">블러피 · 1:1 카드 베팅 대결</text>
+  <text x="600" y="590" font-size="64" text-anchor="middle" fill="#ffffff" font-family="sans-serif" font-weight="900">블러피 · 2~5인 카드 베팅 대결</text>
 </svg>

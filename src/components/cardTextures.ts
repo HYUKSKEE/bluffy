@@ -141,3 +141,36 @@ export function backTexture(question: boolean, fontKey: number): THREE.CanvasTex
   cache.set(key, t)
   return t
 }
+
+/** 이름표 텍스처 (닉네임 · 칩 / 상태). 길면 말줄임. */
+export function labelTexture(text: string, mood: 'normal' | 'active' | 'out' | 'win', fontKey: number): THREE.CanvasTexture {
+  const key = `l${mood}|${text}|${fontKey}`
+  const hit = cache.get(key)
+  if (hit) return hit
+  const w = 512
+  const h = 128
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const ctx = c.getContext('2d')!
+  const fill = { normal: 'rgba(8,8,14,0.72)', active: 'rgba(27,95,209,0.92)', out: 'rgba(40,40,52,0.7)', win: 'rgba(255,59,92,0.92)' }[mood]
+  ctx.fillStyle = fill
+  rr(ctx, 6, 10, w - 12, h - 20, 40)
+  ctx.fill()
+  ctx.strokeStyle = mood === 'active' ? '#cde8ff' : mood === 'win' ? '#ffd65e' : 'rgba(255,255,255,0.25)'
+  ctx.lineWidth = mood === 'active' || mood === 'win' ? 6 : 3
+  ctx.stroke()
+  ctx.fillStyle = mood === 'out' ? 'rgba(255,255,255,0.55)' : '#fff'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  let size = 58
+  ctx.font = `${size}px ${FONT}`
+  while (ctx.measureText(text).width > w - 56 && size > 26) {
+    size -= 4
+    ctx.font = `${size}px ${FONT}`
+  }
+  ctx.fillText(text, w / 2, h / 2 + 4)
+  const t = finish(c)
+  cache.set(key, t)
+  return t
+}

@@ -58,14 +58,14 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
 export function RulesBody() {
   return (
     <ul className="space-y-2.5 text-[1.02rem] leading-snug">
-      <li><span className="tag mr-1.5">카드</span>1~10 카드 두 벌, 판마다 2장씩 받아요.</li>
-      <li><span className="tag tag-red mr-1.5">족보</span>페어(같은 숫자) &gt; 합이 큰 쪽. 페어끼리는 큰 숫자가 이겨요. 똑같으면 판돈을 나눠요.</li>
-      <li><span className="tag mr-1.5">베팅</span>기본 1칩씩 걸고 시작! 체크 · 베팅/레이즈(1~3칩, 판당 3번) · 콜(맞추고 승부) · 다이(포기). 한 번에 20초.</li>
-      <li><span className="tag tag-red mr-1.5">매치</span>시작 칩 20개, 최대 5판. 칩이 바닥나면 즉시 끝. 최종 칩 − 20이 내 수익이에요.</li>
+      <li><span className="tag mr-1.5">테이블</span>2~5명이 한 테이블! 방장이 마음대로 시작할 수 있어요. (5명이면 자동 시작)</li>
+      <li><span className="tag tag-red mr-1.5">족보</span>카드 1~10을 2장씩 받아요. 페어(같은 숫자) &gt; 합이 큰 쪽. 페어끼리는 큰 숫자가 이겨요. 승부에 남은 사람 중 최고 족보가 판돈을 가져가요.</li>
+      <li><span className="tag mr-1.5">베팅</span>기본 1칩씩 걸고 시작! 체크 · 베팅/레이즈(1~3칩, 판당 3번) · 콜 · 다이(포기). 한 번에 20초.</li>
+      <li><span className="tag tag-red mr-1.5">매치</span>시작 칩 100개, 최대 10판. 칩이 바닥나면 탈락, 한 명만 남으면 끝. 최종 칩 − 100이 내 수익이에요.</li>
       <li>
-        <span className="tag mr-1.5">A 모드</span>내 카드 2장 + 상대 공개 카드 1장이 보여요.
+        <span className="tag mr-1.5">A 모드</span>내 카드 2장 + 각 상대의 공개 카드 1장이 보여요.
         <br />
-        <span className="tag tag-red mr-1.5">B 모드</span>상대 카드 2장만 보여요. 내 카드는 몰라요!
+        <span className="tag tag-red mr-1.5">B 모드</span>모든 상대의 카드 2장이 보여요. 내 카드만 몰라요!
       </li>
       <li className="text-sm text-muted">승부(쇼다운) 때만 카드가 공개돼요. 칩은 가상이며 무료예요. 현금·경품과 무관해요.</li>
     </ul>

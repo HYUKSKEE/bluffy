@@ -33,6 +33,7 @@ begin
                                'created_at', r.created_at, 'closed_at', r.closed_at),
     'participants', (select count(*) from card_players where room_id = r.id),
     'active_matches', (select count(*) from card_matches where room_id = r.id and status = 'playing'),
+    'waiting_tables', (select count(*) from card_matches where room_id = r.id and status = 'waiting'),
     'ranking', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', p.id, 'nickname', p.nickname, 'total_profit', p.total_profit,
@@ -79,7 +80,7 @@ begin
                             'matches_won', pl.matches_won, 'final_rank', pl.final_rank);
 end $$;
 
--- 내 상태: 플레이어 정보 + 진행 중인 매치(재접속 복귀용)
+-- 내 상태: 플레이어 정보 + 앉아 있는 테이블(대기 중이거나 진행 중, 재접속 복귀용)
 create function public.card_my_status(p_room_id uuid)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -90,9 +91,10 @@ begin
   if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
   update card_players set last_seen = now() where room_id = p_room_id and uid = v_uid returning * into pl;
   if not found then return jsonb_build_object('player', null, 'match_id', null); end if;
-  select id into v_match from card_matches
-   where status = 'playing' and (player1_id = pl.id or player2_id = pl.id)
-   order by created_at desc limit 1;
+  select mt.id into v_match
+    from card_matches mt join card_match_players mp on mp.match_id = mt.id
+   where mp.player_id = pl.id and not mp.left_match and mt.status in ('waiting', 'playing')
+   order by mt.created_at desc limit 1;
   return jsonb_build_object(
     'player', jsonb_build_object('id', pl.id, 'nickname', pl.nickname, 'status', pl.status,
                                  'total_profit', pl.total_profit, 'matches_played', pl.matches_played,
@@ -100,27 +102,31 @@ begin
     'match_id', v_match);
 end $$;
 
--- 연결 유지 신호 (대기 중/대결 중 응답 없음 판정에 사용)
+-- 연결 유지 신호 (대기/대결 중 응답 없음 판정에 사용). 대기 테이블의 유령 좌석도 정리한다.
 create function public.card_heartbeat(p_room_id uuid)
 returns void language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
   update card_players set last_seen = now() where room_id = p_room_id and uid = auth.uid();
+  perform card_game.prune_waiting(p_room_id);
 end $$;
 
--- ───────────── 매칭 ─────────────
--- 대기 중인 사람이 있으면 가장 먼저 대기한 사람과 1:1 매치를 만든다. 없으면 대기열에 들어간다.
+-- ───────────── 테이블 (대기 → 시작) ─────────────
+-- 대결 찾기: 가장 먼저 열린 대기 테이블(5명 미만)에 앉는다. 없으면 새 테이블을 열고 내가 방장이 된다.
+-- 5명이 모이면 자동으로 시작한다. 반환: { status: waiting | playing, match_id }
 create function public.card_queue_match(p_room_id uuid)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_uid uuid := auth.uid();
   r card_rooms%rowtype;
   me card_players%rowtype;
-  opp card_players%rowtype;
   v_match uuid;
+  v_status text;
+  v_seat int;
+  v_count int;
 begin
   if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
-  perform pg_advisory_xact_lock(hashtext('card_room:' || p_room_id::text));   -- 방 단위 매칭 직렬화
+  perform pg_advisory_xact_lock(hashtext('card_room:' || p_room_id::text));   -- 방 단위 직렬화
 
   select * into r from card_rooms where id = p_room_id;
   if not found then raise exception 'ROOM_NOT_FOUND'; end if;
@@ -129,47 +135,99 @@ begin
   if not found then raise exception 'NOT_JOINED'; end if;
   update card_players set last_seen = now() where id = me.id;
 
-  if me.status = 'playing' then
-    select id into v_match from card_matches
-     where status = 'playing' and (player1_id = me.id or player2_id = me.id) limit 1;
-    return jsonb_build_object('status', 'matched', 'match_id', v_match);
+  -- 이미 앉아 있으면 그 테이블로 복귀
+  select mt.id, mt.status into v_match, v_status
+    from card_matches mt join card_match_players mp on mp.match_id = mt.id
+   where mp.player_id = me.id and not mp.left_match and mt.status in ('waiting', 'playing') limit 1;
+  if v_match is not null then
+    return jsonb_build_object('status', v_status, 'match_id', v_match);
   end if;
 
-  -- 먼저 대기한 순. 30초 넘게 신호가 없는 대기자(탭을 닫은 사람)는 건너뛴다.
-  select * into opp from card_players
-   where room_id = p_room_id and status = 'queued' and id <> me.id
-     and last_seen > now() - interval '30 seconds'
-   order by queued_at asc, id limit 1 for update;
+  perform card_game.prune_waiting(p_room_id);
 
-  if found then
-    insert into card_matches (room_id, player1_id, player2_id) values (p_room_id, opp.id, me.id)
-    returning id into v_match;
-    update card_players set status = 'playing', queued_at = null where id in (opp.id, me.id);
-    perform card_game.start_hand(v_match);
-    perform card_game.notify('card_room:' || p_room_id);
-    return jsonb_build_object('status', 'matched', 'match_id', v_match);
+  select mt.id into v_match from card_matches mt
+   where mt.room_id = p_room_id and mt.status = 'waiting'
+     and (select count(*) from card_match_players where match_id = mt.id) < 5
+   order by mt.created_at, mt.id limit 1;
+  if v_match is null then
+    insert into card_matches (room_id, host_player_id) values (p_room_id, me.id) returning id into v_match;
   end if;
 
-  update card_players set status = 'queued', queued_at = coalesce(queued_at, now()) where id = me.id;
+  select min(s) into v_seat from generate_series(1, 5) s
+   where not exists (select 1 from card_match_players where match_id = v_match and seat = s);
+  insert into card_match_players (match_id, seat, player_id) values (v_match, v_seat, me.id);
+  update card_players set status = 'queued', queued_at = now() where id = me.id;
+
+  select count(*) into v_count from card_match_players where match_id = v_match;
+  if v_count >= 5 then
+    perform card_game.begin_match(v_match);
+    v_status := 'playing';
+  else
+    v_status := 'waiting';
+  end if;
+  perform card_game.notify('card_match:' || v_match);
   perform card_game.notify('card_room:' || p_room_id);
-  return jsonb_build_object('status', 'queued');
+  return jsonb_build_object('status', v_status, 'match_id', v_match);
 end $$;
 
-create function public.card_cancel_queue(p_room_id uuid)
-returns void language plpgsql security definer set search_path = public, pg_temp as $$
+-- 방장이 마음대로 시작한다 (2명 이상). 5명이 되면 자동 시작되므로 그 전에 시작하고 싶을 때 쓴다.
+create function public.card_start_match(p_match_id uuid)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_uid uuid := auth.uid();
+  m card_matches%rowtype;
+  v_caller uuid;
+  v_count int;
 begin
-  if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
-  perform pg_advisory_xact_lock(hashtext('card_room:' || p_room_id::text));
-  update card_players set status = 'idle', queued_at = null
-   where room_id = p_room_id and uid = auth.uid() and status = 'queued';
-  perform card_game.notify('card_room:' || p_room_id);
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  select * into m from card_matches where id = p_match_id;
+  if not found then raise exception 'MATCH_NOT_FOUND'; end if;
+  perform pg_advisory_xact_lock(hashtext('card_room:' || m.room_id::text));
+  select * into m from card_matches where id = p_match_id for update;
+
+  select p.id into v_caller from card_players p
+    join card_match_players mp on mp.player_id = p.id and mp.match_id = m.id
+   where p.uid = v_uid and not mp.left_match;
+  if v_caller is null then raise exception 'NOT_A_PLAYER'; end if;
+  if m.host_player_id <> v_caller then raise exception 'NOT_HOST'; end if;
+  if m.status <> 'waiting' then raise exception 'ALREADY_STARTED'; end if;
+
+  update card_players set last_seen = now() where id = v_caller;
+  perform card_game.prune_waiting(m.room_id);
+  select count(*) into v_count from card_match_players where match_id = m.id;
+  if v_count < 2 then raise exception 'NOT_ENOUGH_PLAYERS'; end if;
+
+  perform card_game.begin_match(m.id);
+  return jsonb_build_object('status', 'playing', 'match_id', m.id);
+end $$;
+
+-- 나가기. 대기 중이면 자리를 비우고(방장이면 방장 위임), 진행 중이면 기권한다.
+create function public.card_leave_match(p_match_id uuid)
+returns void language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_uid uuid := auth.uid();
+  m card_matches%rowtype;
+  v_pl uuid;
+begin
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  select * into m from card_matches where id = p_match_id for update;
+  if not found then raise exception 'MATCH_NOT_FOUND'; end if;
+  select p.id into v_pl from card_players p
+    join card_match_players mp on mp.player_id = p.id and mp.match_id = m.id
+   where p.uid = v_uid;
+  if v_pl is null then raise exception 'NOT_A_PLAYER'; end if;
+  if m.status = 'waiting' then
+    perform card_game.remove_waiting_seat(m.id, v_pl);
+  elsif m.status = 'playing' then
+    perform card_game.forfeit(m.id, v_pl);
+  end if;
 end $$;
 
 -- ───────────── 카드 조회 (카드 값이 클라이언트로 가는 유일한 경로) ─────────────
 -- 모드와 요청자(auth.uid())에 따라 볼 수 있는 카드만 돌려준다. 못 보는 카드는 null.
---   A 모드: 내 카드 2장 + 상대 공개 카드 1장
---   B 모드: 상대 카드 2장 (내 카드는 null)
---   쇼다운으로 끝난 판: 양쪽 전부 (다이로 끝난 판은 공개하지 않는다)
+--   A 모드: 내 카드 2장 + 각 상대의 공개 카드 1장
+--   B 모드: 모든 상대의 카드 2장 (내 카드는 null)
+--   쇼다운으로 끝난 판: 생존자(다이 안 한 사람)의 카드는 전부 공개 (다이로 끝난 판은 공개하지 않는다)
 -- p_hand_no 가 null 이면 가장 최근 판.
 create function public.card_get_visible_hand(p_match_id uuid, p_hand_no int default null)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
@@ -178,17 +236,17 @@ declare
   m card_matches%rowtype;
   h card_hands%rowtype;
   r card_rooms%rowtype;
-  seat int;
-  mine int[]; theirs int[];
-  my_open int; opp_open int;
-  v_me int[]; v_opp int[];
+  v_my_seat int;
+  hs record;
+  v_cards int[];
+  v_seats jsonb := '[]'::jsonb;
 begin
   if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
   select * into m from card_matches where id = p_match_id;
   if not found then raise exception 'MATCH_NOT_FOUND'; end if;
-  if exists (select 1 from card_players where id = m.player1_id and uid = v_uid) then seat := 1;
-  elsif exists (select 1 from card_players where id = m.player2_id and uid = v_uid) then seat := 2;
-  else raise exception 'NOT_A_PLAYER'; end if;
+  select mp.seat into v_my_seat from card_match_players mp join card_players p on p.id = mp.player_id
+   where mp.match_id = p_match_id and p.uid = v_uid;
+  if v_my_seat is null then raise exception 'NOT_A_PLAYER'; end if;
 
   select * into r from card_rooms where id = m.room_id;
   select * into h from card_hands
@@ -196,30 +254,25 @@ begin
    order by hand_no desc limit 1;
   if not found then return null; end if;
 
-  mine     := case when seat = 1 then h.cards1 else h.cards2 end;
-  theirs   := case when seat = 1 then h.cards2 else h.cards1 end;
-  my_open  := case when seat = 1 then h.open1 else h.open2 end;
-  opp_open := case when seat = 1 then h.open2 else h.open1 end;
+  for hs in select * from card_hand_seats where hand_id = h.id order by seat loop
+    if h.revealed and hs.in_hand and not hs.folded then
+      v_cards := hs.cards;                                              -- 쇼다운 생존자: 모두에게 공개
+    elsif hs.seat = v_my_seat then
+      v_cards := case when r.mode = 'A' then hs.cards else array[null, null]::int[] end;
+    elsif r.mode = 'A' then
+      v_cards := array[case when hs.open_idx = 1 then hs.cards[1] end, case when hs.open_idx = 2 then hs.cards[2] end];
+    else
+      v_cards := hs.cards;
+    end if;
+    v_seats := v_seats || jsonb_build_array(jsonb_build_object(
+      'seat', hs.seat, 'cards', to_jsonb(v_cards), 'open', case when r.mode = 'A' then hs.open_idx end));
+  end loop;
 
-  if h.revealed then
-    v_me := mine;
-    v_opp := theirs;
-  elsif r.mode = 'A' then
-    v_me := mine;
-    v_opp := array[case when opp_open = 1 then theirs[1] end, case when opp_open = 2 then theirs[2] end];
-  else
-    v_me := array[null, null]::int[];
-    v_opp := theirs;
-  end if;
-
-  return jsonb_build_object(
-    'hand_id', h.id, 'hand_no', h.hand_no, 'mode', r.mode, 'seat', seat, 'revealed', h.revealed,
-    'me', to_jsonb(v_me), 'opp', to_jsonb(v_opp),
-    'me_open',  case when r.mode = 'A' then my_open end,
-    'opp_open', case when r.mode = 'A' then opp_open end);
+  return jsonb_build_object('hand_id', h.id, 'hand_no', h.hand_no, 'mode', r.mode,
+                            'my_seat', v_my_seat, 'revealed', h.revealed, 'seats', v_seats);
 end $$;
 
--- 카드를 제외한 매치 상태(칩, 판돈, 차례, 행동 로그). 카드 컬럼은 읽지 않는다.
+-- 카드를 제외한 매치 상태(좌석, 칩, 판돈, 차례, 행동 로그). 카드 컬럼은 읽지 않는다.
 create function public.card_get_match_state(p_match_id uuid)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -227,45 +280,53 @@ declare
   m card_matches%rowtype;
   h card_hands%rowtype;
   r card_rooms%rowtype;
-  p1 card_players%rowtype;
-  p2 card_players%rowtype;
-  seat int;
+  v_my_seat int;
   v_hand jsonb := null;
+  v_hand_id uuid := null;
   v_actions jsonb := '[]'::jsonb;
+  v_seats jsonb;
 begin
   if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
   select * into m from card_matches where id = p_match_id;
   if not found then raise exception 'MATCH_NOT_FOUND'; end if;
-  select * into p1 from card_players where id = m.player1_id;
-  select * into p2 from card_players where id = m.player2_id;
-  if p1.uid = v_uid then seat := 1; elsif p2.uid = v_uid then seat := 2;
-  else raise exception 'NOT_A_PLAYER'; end if;
+  select mp.seat into v_my_seat from card_match_players mp join card_players p on p.id = mp.player_id
+   where mp.match_id = p_match_id and p.uid = v_uid;
+  if v_my_seat is null then raise exception 'NOT_A_PLAYER'; end if;
   select * into r from card_rooms where id = m.room_id;
 
   select * into h from card_hands where match_id = p_match_id order by hand_no desc limit 1;
   if found then
+    v_hand_id := h.id;
     v_hand := jsonb_build_object(
-      'id', h.id, 'hand_no', h.hand_no, 'status', h.status, 'pot', h.pot, 'current_bet', h.current_bet,
-      'committed1', h.committed1, 'committed2', h.committed2,
-      'lead_player_id', h.lead_player_id, 'turn_player_id', h.turn_player_id,
-      'raise_count', h.raise_count, 'checks', h.checks,
-      'turn_deadline', h.turn_deadline, 'result', h.result);
+      'id', h.id, 'hand_no', h.hand_no, 'status', h.status, 'pot', h.pot, 'level', h.level,
+      'current_bet', h.current_bet, 'raise_count', h.raise_count, 'lead_seat', h.lead_seat,
+      'turn_seat', h.turn_seat, 'turn_deadline', h.turn_deadline, 'revealed', h.revealed, 'result', h.result);
     select coalesce(jsonb_agg(jsonb_build_object(
-             'id', a.id, 'player_id', a.player_id, 'action', a.action, 'amount', a.amount,
+             'id', a.id, 'seat', a.seat, 'player_id', a.player_id, 'action', a.action, 'amount', a.amount,
              'auto', a.auto, 'created_at', a.created_at) order by a.id), '[]'::jsonb)
       into v_actions from card_actions a where a.hand_id = h.id;
   end if;
 
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'seat', mp.seat, 'player_id', mp.player_id, 'nickname', p.nickname, 'chips', mp.chips,
+           'left', mp.left_match, 'is_host', (m.host_player_id = mp.player_id),
+           'profit', mp.profit, 'is_winner', mp.is_winner,
+           'in_hand', coalesce(hs.in_hand, false), 'folded', coalesce(hs.folded, false),
+           'committed', coalesce(hs.committed, 0)) order by mp.seat), '[]'::jsonb)
+    into v_seats
+    from card_match_players mp
+    join card_players p on p.id = mp.player_id
+    left join card_hand_seats hs on hs.hand_id = v_hand_id and hs.seat = mp.seat
+   where mp.match_id = m.id;
+
   return jsonb_build_object(
     'server_now', now(),
-    'seat', seat,
+    'my_seat', v_my_seat,
     'match', jsonb_build_object(
       'id', m.id, 'room_id', m.room_id, 'room_status', r.status, 'mode', r.mode, 'status', m.status,
-      'hand_no', m.hand_no, 'max_hands', 5, 'chips1', m.chips1, 'chips2', m.chips2, 'carry', m.carry,
-      'player1', jsonb_build_object('id', p1.id, 'nickname', p1.nickname),
-      'player2', jsonb_build_object('id', p2.id, 'nickname', p2.nickname),
-      'winner_id', m.winner_id, 'end_reason', m.end_reason,
-      'profit1', m.profit1, 'profit2', m.profit2, 'next_hand_at', m.next_hand_at),
+      'hand_no', m.hand_no, 'max_hands', m.max_hands, 'start_chips', m.start_chips, 'carry', m.carry,
+      'host_player_id', m.host_player_id, 'end_reason', m.end_reason, 'next_hand_at', m.next_hand_at),
+    'seats', v_seats,
     'hand', v_hand,
     'actions', v_actions);
 end $$;
@@ -287,8 +348,9 @@ begin
   perform 1 from card_matches where id = v_match for update;           -- 잠금 순서: matches → hands
   select * into h from card_hands where id = p_hand_id for update;
 
-  select p.id into v_pl from card_players p join card_matches m on p.id in (m.player1_id, m.player2_id)
-   where m.id = v_match and p.uid = v_uid;
+  select p.id into v_pl from card_players p
+    join card_match_players mp on mp.player_id = p.id and mp.match_id = v_match
+   where p.uid = v_uid and not mp.left_match;
   if v_pl is null then raise exception 'NOT_A_PLAYER'; end if;
 
   -- 시간이 지났으면 클라이언트 행동 대신 timeout_check 가 처리한다 (1초 여유)
@@ -301,7 +363,7 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
--- 시간 초과 처리: 상대가 60초 넘게 응답이 없으면 기권 처리, 20초 턴이 지났으면 자동 행동(체크/다이).
+-- 시간 초과 처리: 60초 넘게 응답이 없는 사람은 기권 처리, 20초 턴이 지났으면 자동 행동(체크/다이).
 -- 참가자 누구나 호출 가능하며 서버가 조건을 검증하므로 멱등적이다.
 create function public.card_timeout_check(p_hand_id uuid)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
@@ -310,9 +372,12 @@ declare
   v_match uuid;
   h card_hands%rowtype;
   m card_matches%rowtype;
-  v_seen timestamptz;
   v_caller uuid;
+  v_turn_player uuid;
+  v_my_c int;
   v_action text;
+  v_forfeit boolean := false;
+  s record;
 begin
   if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
   select match_id into v_match from card_hands where id = p_hand_id;
@@ -321,74 +386,77 @@ begin
   select * into h from card_hands where id = p_hand_id for update;
 
   select p.id into v_caller from card_players p
-   where p.uid = v_uid and p.id in (m.player1_id, m.player2_id);
+    join card_match_players mp on mp.player_id = p.id and mp.match_id = v_match
+   where p.uid = v_uid;
   if v_caller is null then raise exception 'NOT_A_PLAYER'; end if;
   update card_players set last_seen = now() where id = v_caller;
 
-  if m.status <> 'playing' or h.status <> 'betting' then
-    return jsonb_build_object('result', 'noop');
-  end if;
+  if m.status <> 'playing' then return jsonb_build_object('result', 'noop'); end if;
 
-  select last_seen into v_seen from card_players where id = h.turn_player_id;
-  if v_seen < now() - interval '60 seconds' then
-    perform card_game.forfeit(v_match, h.turn_player_id);
-    return jsonb_build_object('result', 'forfeit');
+  -- 60초 넘게 응답이 없는 사람은 기권 처리 (진행 중인 판에서는 다이)
+  for s in
+    select mp.player_id from card_match_players mp join card_players p on p.id = mp.player_id
+     where mp.match_id = v_match and not mp.left_match and p.id <> v_caller
+       and p.last_seen < now() - interval '60 seconds'
+  loop
+    perform card_game.forfeit(v_match, s.player_id);
+    v_forfeit := true;
+  end loop;
+
+  select * into m from card_matches where id = v_match;
+  select * into h from card_hands where id = p_hand_id;
+  if m.status <> 'playing' or h.status <> 'betting' then
+    return jsonb_build_object('result', case when v_forfeit then 'forfeit' else 'noop' end);
   end if;
 
   if now() >= h.turn_deadline then
-    v_action := case when h.committed1 = h.committed2 then 'check' else 'die' end;
-    perform card_game.apply_action(p_hand_id, h.turn_player_id, v_action, 0, true);
+    select mp.player_id into v_turn_player from card_match_players mp where mp.match_id = v_match and mp.seat = h.turn_seat;
+    select committed into v_my_c from card_hand_seats where hand_id = h.id and seat = h.turn_seat;
+    v_action := case when h.level = v_my_c then 'check' else 'die' end;
+    perform card_game.apply_action(p_hand_id, v_turn_player, v_action, 0, true);
     return jsonb_build_object('result', 'auto', 'action', v_action);
   end if;
-  return jsonb_build_object('result', 'noop');
+  return jsonb_build_object('result', case when v_forfeit then 'forfeit' else 'noop' end);
 end $$;
 
 -- 판이 끝나고 연출 시간(next_hand_at)이 지났으면 다음 판을 시작한다. 멱등.
--- 연출 중에 상대가 60초 넘게 사라졌으면 기권 처리한다.
+-- 연출 중에 60초 넘게 사라진 사람은 기권 처리한다.
 create function public.card_advance_match(p_match_id uuid)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_uid uuid := auth.uid();
   m card_matches%rowtype;
   v_caller uuid;
-  v_opp uuid;
-  v_seen timestamptz;
+  v_forfeit boolean := false;
+  s record;
 begin
   if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
   select * into m from card_matches where id = p_match_id for update;
   if not found then raise exception 'MATCH_NOT_FOUND'; end if;
-  select p.id into v_caller from card_players p where p.uid = v_uid and p.id in (m.player1_id, m.player2_id);
+  select p.id into v_caller from card_players p
+    join card_match_players mp on mp.player_id = p.id and mp.match_id = m.id
+   where p.uid = v_uid;
   if v_caller is null then raise exception 'NOT_A_PLAYER'; end if;
   update card_players set last_seen = now() where id = v_caller;
 
-  if m.status <> 'playing' or m.next_hand_at is null then return jsonb_build_object('result', 'noop'); end if;
+  if m.status <> 'playing' then return jsonb_build_object('result', 'noop'); end if;
 
-  v_opp := case when v_caller = m.player1_id then m.player2_id else m.player1_id end;
-  select last_seen into v_seen from card_players where id = v_opp;
-  if v_seen < now() - interval '60 seconds' then
-    perform card_game.forfeit(p_match_id, v_opp);
-    return jsonb_build_object('result', 'forfeit');
+  for s in
+    select mp.player_id from card_match_players mp join card_players p on p.id = mp.player_id
+     where mp.match_id = m.id and not mp.left_match and p.id <> v_caller
+       and p.last_seen < now() - interval '60 seconds'
+  loop
+    perform card_game.forfeit(m.id, s.player_id);
+    v_forfeit := true;
+  end loop;
+
+  select * into m from card_matches where id = p_match_id;
+  if m.status <> 'playing' or m.next_hand_at is null then
+    return jsonb_build_object('result', case when v_forfeit then 'forfeit' else 'noop' end);
   end if;
-
   if now() < m.next_hand_at then return jsonb_build_object('result', 'wait'); end if;
   perform card_game.start_hand(p_match_id);
   return jsonb_build_object('result', 'started');
-end $$;
-
--- 나가기 = 기권. 남은 사람의 승리로 처리한다.
-create function public.card_leave_match(p_match_id uuid)
-returns void language plpgsql security definer set search_path = public, pg_temp as $$
-declare
-  v_uid uuid := auth.uid();
-  m card_matches%rowtype;
-  v_pl uuid;
-begin
-  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
-  select * into m from card_matches where id = p_match_id for update;
-  if not found then raise exception 'MATCH_NOT_FOUND'; end if;
-  select p.id into v_pl from card_players p where p.uid = v_uid and p.id in (m.player1_id, m.player2_id);
-  if v_pl is null then raise exception 'NOT_A_PLAYER'; end if;
-  perform card_game.forfeit(p_match_id, v_pl);
 end $$;
 
 -- ───────────── 방 관리 (생성자 전용) ─────────────
@@ -400,7 +468,7 @@ returns boolean language sql security definer set search_path = public, pg_temp 
        and admin_token_hash = encode(sha256(convert_to(coalesce(p_admin_token, ''), 'UTF8')), 'hex'));
 $$;
 
--- 방 종료: 진행 중 매치는 무효 처리(수익 반영 없음), 최종 순위를 확정한다.
+-- 방 종료: 대기/진행 중 테이블은 무효 처리(수익 반영 없음), 최종 순위를 확정한다.
 create function public.card_close_room(p_room_id uuid, p_admin_token text)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -412,8 +480,8 @@ begin
 
   update card_rooms set status = 'closed', closed_at = now() where id = p_room_id and status = 'open';
 
-  for v_m in select id from card_matches where room_id = p_room_id and status = 'playing' for update loop
-    update card_hands set status = 'void', turn_player_id = null, turn_deadline = null
+  for v_m in select id from card_matches where room_id = p_room_id and status in ('waiting', 'playing') for update loop
+    update card_hands set status = 'void', turn_seat = null, turn_deadline = null
      where match_id = v_m and status = 'betting';
     update card_matches set status = 'void', end_reason = 'void', next_hand_at = null where id = v_m;
     perform card_game.notify('card_match:' || v_m);
@@ -440,13 +508,13 @@ revoke execute on function
   public.card_my_status(uuid),
   public.card_heartbeat(uuid),
   public.card_queue_match(uuid),
-  public.card_cancel_queue(uuid),
+  public.card_start_match(uuid),
+  public.card_leave_match(uuid),
   public.card_get_visible_hand(uuid, int),
   public.card_get_match_state(uuid),
   public.card_act(uuid, text, int),
   public.card_timeout_check(uuid),
   public.card_advance_match(uuid),
-  public.card_leave_match(uuid),
   public.card_verify_admin(uuid, text),
   public.card_close_room(uuid, text)
 from public, anon, authenticated;
@@ -458,13 +526,13 @@ grant execute on function
   public.card_my_status(uuid),
   public.card_heartbeat(uuid),
   public.card_queue_match(uuid),
-  public.card_cancel_queue(uuid),
+  public.card_start_match(uuid),
+  public.card_leave_match(uuid),
   public.card_get_visible_hand(uuid, int),
   public.card_get_match_state(uuid),
   public.card_act(uuid, text, int),
   public.card_timeout_check(uuid),
   public.card_advance_match(uuid),
-  public.card_leave_match(uuid),
   public.card_verify_admin(uuid, text),
   public.card_close_room(uuid, text)
 to authenticated;

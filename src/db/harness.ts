@@ -70,17 +70,54 @@ export async function asClient(db: Db, uid: string | null, q: string) {
   }
 }
 
-/** 방 + 두 플레이어 + 매치 시작. player1 = 먼저 대기한 사람(a). */
-export async function setupMatch(db: Db, mode: 'A' | 'B') {
-  const owner = newUser(), ua = newUser(), ub = newUser()
+export interface Table {
+  owner: string
+  roomId: string
+  adminToken: string
+  matchId: string
+  /** 좌석 순서(1번 좌석 = 방장)의 사용자 uid / 플레이어 정보 */
+  users: string[]
+  players: any[]
+  /** 방장 + 첫 상대 (2인 테스트용 단축) */
+  ua: string
+  ub: string
+  pa: any
+  pb: any
+}
+
+/** 방 + n명 입장 + 테이블 시작 (n<5 면 방장이 시작, 5명이면 자동 시작). 1번 좌석 = 방장. */
+export async function setupMatch(db: Db, mode: 'A' | 'B', n = 2): Promise<Table> {
+  const owner = newUser()
   const room = await rpc(db, owner, 'create_room', '테스트방', mode)
   const roomId: string = room.room_id
-  const pa = await rpc(db, ua, 'join_room', roomId, '에이')
-  const pb = await rpc(db, ub, 'join_room', roomId, '비이')
-  const q1 = await rpc(db, ua, 'queue_match', roomId)
-  const q2 = await rpc(db, ub, 'queue_match', roomId)
-  const matchId: string = q2.match_id
-  return { owner, ua, ub, pa, pb, roomId, adminToken: room.admin_token as string, matchId, q1, q2 }
+  const users: string[] = []
+  const players: any[] = []
+  let matchId = ''
+  for (let i = 0; i < n; i++) {
+    const u = newUser()
+    users.push(u)
+    players.push(await rpc(db, u, 'join_room', roomId, `선수${i + 1}`))
+    const q = await rpc(db, u, 'queue_match', roomId)
+    matchId = q.match_id
+  }
+  if (n < 5) await rpc(db, users[0], 'start_match', matchId)
+  return { owner, roomId, adminToken: room.admin_token as string, matchId, users, players, ua: users[0], ub: users[1], pa: players[0], pb: players[1] }
+}
+
+/** 방 + 대기 테이블만 만든다 (시작 전) */
+export async function setupWaiting(db: Db, mode: 'A' | 'B', n: number) {
+  const owner = newUser()
+  const room = await rpc(db, owner, 'create_room', '대기방', mode)
+  const users: string[] = []
+  const players: any[] = []
+  let matchId = ''
+  for (let i = 0; i < n; i++) {
+    const u = newUser()
+    users.push(u)
+    players.push(await rpc(db, u, 'join_room', room.room_id, `대기${i + 1}`))
+    matchId = (await rpc(db, u, 'queue_match', room.room_id)).match_id
+  }
+  return { owner, roomId: room.room_id as string, users, players, matchId }
 }
 
 /** 서버측(superuser) 조작: 시간 흐름 흉내, 정답 카드 확인 등 */

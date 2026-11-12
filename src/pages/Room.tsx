@@ -96,17 +96,13 @@ export default function Room() {
   }
 
   // ───── 2) 로비 ─────
-  const queued = player.status === 'queued'
-  const toggleQueue = async () => {
+  // 대결 찾기: 대기 중인 테이블(5명 미만)에 앉거나, 없으면 새 테이블을 열고 내가 방장이 된다.
+  const findTable = async () => {
     setBusy(true)
     setMsg(null)
     try {
-      if (queued) {
-        await api.cancelQueue(id)
-      } else {
-        const r = await api.queueMatch(id)
-        if (r.status === 'matched' && r.match_id) { setInMatch(r.match_id); return }
-      }
+      const r = await api.queueMatch(id)
+      setInMatch(r.match_id)
     } catch (err) {
       if (err instanceof GameError && err.code === 'ROOM_CLOSED') nav(`/r/${id}/result`, { replace: true })
       else setMsg(friendly(err))
@@ -140,10 +136,10 @@ export default function Room() {
           </div>
         </div>
         {msg && <p role="alert" className="mb-3 text-red-soft">{msg}</p>}
-        <button className={`candy w-full text-xl ${queued ? 'candy-dark' : ''}`} onClick={toggleQueue} disabled={busy}>
-          {queued ? <><span className="coin animate-bounceY" /> 상대를 찾는 중... (취소)</> : '대결 찾기'}
+        <button className="candy w-full text-xl" onClick={findTable} disabled={busy}>
+          {busy ? '테이블을 찾는 중...' : view.waiting_tables > 0 ? `대결 찾기 (대기 중인 테이블 ${view.waiting_tables}개)` : '대결 찾기'}
         </button>
-        <p className="mt-3 text-center text-sm text-muted">시작 칩 <Chips n={20} /> · 최대 5판 · 한 매치가 끝나면 다시 대결할 수 있어요</p>
+        <p className="mt-3 text-center text-sm text-muted">2~5명이 한 테이블 · 시작 칩 <Chips n={100} /> · 최대 10판 · 방장이 시작해요</p>
       </section>
 
       <section className="mt-6">

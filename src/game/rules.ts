@@ -1,20 +1,23 @@
 /**
- * 카드 대결 규칙 — 순수 함수 모음.
+ * 카드 대결 규칙 (2~5인) — 순수 함수 모음.
  *
  * 서버(Postgres 함수, supabase/migrations/0002_game_engine.sql)가 실제 판정을 하며,
  * 이 파일은 (1) 규칙의 기준 구현/테스트, (2) 클라이언트의 버튼 활성화 계산에 쓰인다.
  * 두 구현은 tests(src/db/engine.test.ts)에서 서로 교차 검증된다.
+ *
+ * 좌석 인덱스는 0부터(DB 의 seat 은 1부터).
  */
 
-export const START_CHIPS = 20
-export const MAX_HANDS = 5
+export const START_CHIPS = 100
+export const MAX_HANDS = 10
+export const MIN_PLAYERS = 2
+export const MAX_PLAYERS = 5
 export const ANTE = 1
 export const MAX_RAISES = 3
 export const MAX_RAISE_AMOUNT = 3
 export const TURN_SECONDS = 20
 export const IDLE_FORFEIT_SECONDS = 60
 
-export type Seat = 0 | 1
 export type Cards = readonly [number, number]
 
 export interface HandValue {
@@ -37,7 +40,7 @@ export function compareHands(a: Cards, b: Cards): 1 | -1 | 0 {
   return ea.value > eb.value ? 1 : -1
 }
 
-/** 1~10 두 벌 (20장) */
+/** 1~10 카드 두 벌 (20장) */
 export function buildDeck(): number[] {
   const d: number[] = []
   for (let i = 0; i < 20; i++) d.push((i % 10) + 1)
@@ -54,35 +57,38 @@ export function shuffle<T>(arr: readonly T[], rng: () => number = Math.random): 
   return a
 }
 
-export function deal(deck: readonly number[]): { cards: [Cards, Cards]; rest: number[] } {
-  if (deck.length < 4) throw new Error('덱이 부족합니다')
-  return { cards: [[deck[0], deck[1]], [deck[2], deck[3]]], rest: deck.slice(4) }
+/** n명에게 2장씩 배분 (덱 앞에서부터) */
+export function deal(deck: readonly number[], n: number): { cards: Cards[]; rest: number[] } {
+  if (deck.length < n * 2) throw new Error('덱이 부족합니다')
+  const cards: Cards[] = []
+  for (let i = 0; i < n; i++) cards.push([deck[2 * i], deck[2 * i + 1]])
+  return { cards, rest: deck.slice(n * 2) }
 }
 
-/** 판돈 분배. winner: 0|1 = 승자 좌석, 'tie' = 무승부(반씩, 홀수 칩은 이월) */
-export function splitPot(pot: number, winner: Seat | 'tie'): { payout: [number, number]; carry: number } {
-  if (winner === 'tie') {
-    const half = Math.floor(pot / 2)
-    return { payout: [half, half], carry: pot % 2 }
-  }
-  return { payout: winner === 0 ? [pot, 0] : [0, pot], carry: 0 }
+// ───────────────────────── 판 상태 ─────────────────────────
+
+export interface SeatState {
+  /** 손에 남은 칩 (이번 판에 이미 건 칩 제외) */
+  chips: number
+  /** 이번 판에 건 칩 (기본 판돈 포함) */
+  committed: number
+  /** 이번 판에 카드를 받았는가 (칩이 없어 탈락한 사람은 false) */
+  inHand: boolean
+  folded: boolean
+  /** 아직 행동해야 하는가 */
+  pending: boolean
 }
 
-// ───────────────────────── 베팅 ─────────────────────────
-
-export interface BettingState {
-  /** 각자 손에 남은 칩 (이번 판에 이미 건 칩 제외) */
-  stacks: [number, number]
-  /** 이번 판에 각자 건 칩 (기본 판돈 포함) */
-  committed: [number, number]
-  /** 판돈 전체 (이월분 포함) */
-  pot: number
-  /** 지금 행동할 좌석 */
-  turn: Seat
-  /** 이번 판에서 나온 베팅/레이즈 횟수 (최대 3) */
+export interface HandState {
+  seats: SeatState[]
+  /** 이전 판에서 이월된 칩 */
+  carryIn: number
+  /** 이번 판에서 가장 많이 건 사람의 누적 금액 */
+  level: number
+  /** 베팅/레이즈 횟수 (최대 3) */
   raiseCount: number
-  /** 마지막 베팅 이후 연속 체크 수 */
-  checks: number
+  /** 지금 행동할 좌석. 베팅 없이 끝나는 판은 null */
+  turn: number | null
 }
 
 export type Action =
@@ -100,44 +106,58 @@ export type ActionError =
   | 'BAD_AMOUNT'
   | 'NOT_YOUR_TURN'
 
-export type HandEnd = { type: 'showdown' } | { type: 'fold'; loser: Seat }
+export type HandEnd = { type: 'showdown' } | { type: 'fold'; winner: number }
 
 export type ApplyResult =
-  | { ok: true; state: BettingState; end: HandEnd | null }
+  | { ok: true; state: HandState; end: HandEnd | null }
   | { ok: false; error: ActionError }
 
-const other = (s: Seat): Seat => (s === 0 ? 1 : 0)
+export const potOf = (s: HandState): number => s.carryIn + s.seats.reduce((a, x) => a + x.committed, 0)
 
-/** 판 시작: 기본 판돈 1칩씩. carry 는 이월된 홀수 칩. 한쪽 칩이 0이 되면 베팅 없이 곧바로 쇼다운. */
-export function startHand(
-  stacks: readonly [number, number],
-  carry: number,
-  lead: Seat,
-): { state: BettingState; immediateShowdown: boolean } {
-  const s: [number, number] = [stacks[0] - ANTE, stacks[1] - ANTE]
-  if (s[0] < 0 || s[1] < 0) throw new Error('기본 판돈을 낼 칩이 없습니다')
-  return {
-    state: { stacks: s, committed: [ANTE, ANTE], pot: carry + 2 * ANTE, turn: lead, raiseCount: 0, checks: 0 },
-    immediateShowdown: s[0] === 0 || s[1] === 0,
+export const toCall = (s: HandState, i: number): number => s.level - s.seats[i].committed
+
+const isAlive = (x: SeatState) => x.inHand && !x.folded
+
+/** from 다음(inclusive 면 포함) 좌석부터 시계방향으로 pending 인 첫 좌석 */
+function nextPending(seats: readonly SeatState[], from: number, inclusive: boolean): number | null {
+  const n = seats.length
+  for (let k = inclusive ? 0 : 1; k <= n; k++) {
+    const i = (from + k) % n
+    if (seats[i].pending) return i
   }
+  return null
 }
 
-/** 지금 행동자가 맞춰야 할 칩 */
-export function toCall(s: BettingState): number {
-  return s.committed[other(s.turn)] - s.committed[s.turn]
+/** 모든 행동 뒤의 판 종료/다음 차례 판정 */
+function resolve(seats: SeatState[], from: number, inclusive: boolean): { turn: number | null; end: HandEnd | null } {
+  const alive = seats.map((x, i) => (isAlive(x) ? i : -1)).filter((i) => i >= 0)
+  if (alive.length === 1) return { turn: null, end: { type: 'fold', winner: alive[0] } }
+  if (!seats.some((x) => x.pending)) return { turn: null, end: { type: 'showdown' } }
+  return { turn: nextPending(seats, from, inclusive), end: null }
 }
 
 /**
- * 베팅/레이즈 가능한 최대 금액(없으면 0).
- * 내 칩(콜 금액 제외)과 상대 칩을 넘을 수 없다 → 상대가 항상 콜할 수 있다.
+ * 판 시작: 칩이 있는 사람이 기본 판돈 1칩씩. 선(lead)부터 행동.
+ * 기본 판돈을 내고도 칩이 남은 사람이 1명 이하면 베팅 없이 곧바로 쇼다운.
  */
-export function maxRaise(s: BettingState): number {
-  if (s.raiseCount >= MAX_RAISES) return 0
-  const mine = s.stacks[s.turn] - toCall(s)
-  const theirs = s.stacks[other(s.turn)]
-  return Math.max(0, Math.min(MAX_RAISE_AMOUNT, mine, theirs))
+export function startHand(chips: readonly number[], carry: number, lead: number): { state: HandState; end: HandEnd | null } {
+  const seats: SeatState[] = chips.map((c) =>
+    c > 0
+      ? { chips: c - ANTE, committed: ANTE, inHand: true, folded: false, pending: c - ANTE > 0 }
+      : { chips: 0, committed: 0, inHand: false, folded: false, pending: false },
+  )
+  if (seats.filter((x) => x.pending).length <= 1) seats.forEach((x) => (x.pending = false))
+  const { turn, end } = resolve(seats, lead, true)
+  return { state: { seats, carryIn: carry, level: ANTE, raiseCount: 0, turn }, end }
 }
 
+/** 선: 판마다 한 칸씩 이동 (칩이 남은 사람 기준). handNo 는 1부터. */
+export function leadSeat(handNo: number, chips: readonly number[]): number {
+  const alive = chips.map((c, i) => (c > 0 ? i : -1)).filter((i) => i >= 0)
+  return alive[(handNo - 1) % alive.length]
+}
+
+/** 지금 행동할 수 있는 행동 목록 (버튼 활성화용) */
 export interface LegalActions {
   canCheck: boolean
   canCall: boolean
@@ -149,13 +169,13 @@ export interface LegalActions {
   canDie: boolean
 }
 
-export function legalActions(s: BettingState): LegalActions {
-  const need = toCall(s)
-  const rm = maxRaise(s)
+export function legalFor(p: { chips: number; committed: number; level: number; raiseCount: number }): LegalActions {
+  const need = p.level - p.committed
+  const rm = p.raiseCount >= MAX_RAISES ? 0 : Math.max(0, Math.min(MAX_RAISE_AMOUNT, p.chips - need))
   return {
     canCheck: need === 0,
     canCall: need > 0,
-    callAmount: Math.min(need, s.stacks[s.turn]),
+    callAmount: Math.min(need, p.chips),
     canRaise: rm >= 1,
     raiseKind: need === 0 ? 'bet' : 'raise',
     raiseMax: rm,
@@ -163,104 +183,154 @@ export function legalActions(s: BettingState): LegalActions {
   }
 }
 
-export function applyAction(s: BettingState, seat: Seat, a: Action): ApplyResult {
-  if (seat !== s.turn) return { ok: false, error: 'NOT_YOUR_TURN' }
-  const opp = other(seat)
-  const need = toCall(s)
-  const stacks: [number, number] = [s.stacks[0], s.stacks[1]]
-  const committed: [number, number] = [s.committed[0], s.committed[1]]
-  let pot = s.pot
+export function legalActions(s: HandState, i: number): LegalActions {
+  return legalFor({ chips: s.seats[i].chips, committed: s.seats[i].committed, level: s.level, raiseCount: s.raiseCount })
+}
+
+export function applyAction(s: HandState, seat: number, a: Action): ApplyResult {
+  if (s.turn !== seat) return { ok: false, error: 'NOT_YOUR_TURN' }
+  const me = s.seats[seat]
+  const need = toCall(s, seat)
+  const seats: SeatState[] = s.seats.map((x) => ({ ...x }))
+  const mine = seats[seat]
+  let level = s.level
   let raiseCount = s.raiseCount
-  let checks = s.checks
-  let end: HandEnd | null = null
+  let raised = false
 
   switch (a.type) {
-    case 'check': {
+    case 'check':
       if (need !== 0) return { ok: false, error: 'CANNOT_CHECK' }
-      checks += 1
-      if (checks >= 2) end = { type: 'showdown' }
       break
-    }
     case 'bet':
     case 'raise': {
       if ((a.type === 'bet') !== (need === 0)) return { ok: false, error: 'WRONG_ACTION' }
       if (raiseCount >= MAX_RAISES) return { ok: false, error: 'RAISE_LIMIT' }
-      if (!Number.isInteger(a.amount) || a.amount < 1 || a.amount > maxRaise(s)) return { ok: false, error: 'BAD_AMOUNT' }
+      const mx = Math.min(MAX_RAISE_AMOUNT, me.chips - need)
+      if (!Number.isInteger(a.amount) || a.amount < 1 || a.amount > mx) return { ok: false, error: 'BAD_AMOUNT' }
       const pay = need + a.amount
-      stacks[seat] -= pay
-      committed[seat] += pay
-      pot += pay
+      mine.chips -= pay
+      mine.committed += pay
+      level += a.amount
       raiseCount += 1
-      checks = 0
+      raised = true
       break
     }
     case 'call': {
       if (need <= 0) return { ok: false, error: 'NOTHING_TO_CALL' }
-      const pay = Math.min(need, stacks[seat])
-      const refund = need - pay // 칩이 모자라 올인 콜이면 상대의 초과분은 돌려준다
-      stacks[seat] -= pay
-      committed[seat] += pay
-      pot += pay
-      if (refund > 0) {
-        committed[opp] -= refund
-        stacks[opp] += refund
-        pot -= refund
-      }
-      end = { type: 'showdown' }
+      const pay = Math.min(need, me.chips) // 칩이 모자라면 남은 칩 전부로 콜(올인)
+      mine.chips -= pay
+      mine.committed += pay
       break
     }
-    case 'die': {
-      end = { type: 'fold', loser: seat }
+    case 'die':
+      mine.folded = true
       break
-    }
   }
-  return { ok: true, state: { stacks, committed, pot, turn: opp, raiseCount, checks }, end }
+  mine.pending = false
+  if (raised) {
+    seats.forEach((x, i) => {
+      if (i !== seat && isAlive(x) && x.chips > 0) x.pending = true // 레이즈 후 모두 다시 행동
+    })
+  }
+  const { turn, end } = resolve(seats, seat, false)
+  return { ok: true, state: { seats, carryIn: s.carryIn, level, raiseCount, turn }, end }
 }
 
 /** 시간 초과 시 자동 행동: 체크 가능하면 체크, 아니면 다이 */
-export function timeoutAction(s: BettingState): Action {
-  return toCall(s) === 0 ? { type: 'check' } : { type: 'die' }
+export function timeoutAction(s: HandState, i: number): Action {
+  return toCall(s, i) === 0 ? { type: 'check' } : { type: 'die' }
 }
 
-// ───────────────────────── 판/매치 결산 ─────────────────────────
+/** 나가기/무응답으로 기권: 현재 판에서 다이 처리 */
+export function forfeitSeat(s: HandState, seat: number): { state: HandState; end: HandEnd | null } {
+  const seats = s.seats.map((x) => ({ ...x }))
+  seats[seat].folded = true
+  seats[seat].pending = false
+  const { turn, end } = resolve(seats, seat, false)
+  return { state: { ...s, seats, turn }, end }
+}
 
-export interface SettleResult {
-  stacks: [number, number]
+// ───────────────────────── 정산 ─────────────────────────
+
+export interface Settlement {
+  /** 좌석별 획득 칩 */
+  payouts: number[]
+  /** 다음 판으로 이월되는 칩 (동점 분배 후 남는 칩) */
   carry: number
 }
 
-/** winner: 좌석 또는 'tie'. 판돈을 칩에 반영한다. */
-export function settleHand(stacks: readonly [number, number], pot: number, winner: Seat | 'tie'): SettleResult {
-  const { payout, carry } = splitPot(pot, winner)
-  return { stacks: [stacks[0] + payout[0], stacks[1] + payout[1]], carry }
-}
-
-export interface MatchOutcome {
-  finished: boolean
-  reason: 'bust' | 'complete' | null
-  /** 매치 승자 좌석. 무승부/미종료는 null */
-  winner: Seat | null
-}
-
-/** 한 판이 끝난 뒤 매치 종료 여부. handNo 는 방금 끝난 판 번호(1부터). */
-export function matchOutcome(stacks: readonly [number, number], handNo: number): MatchOutcome {
-  const bust = stacks[0] === 0 || stacks[1] === 0
-  if (!bust && handNo < MAX_HANDS) return { finished: false, reason: null, winner: null }
-  const winner: Seat | null = stacks[0] > stacks[1] ? 0 : stacks[1] > stacks[0] ? 1 : null
-  return { finished: true, reason: bust ? 'bust' : 'complete', winner }
+/** 다이로 끝남: 남은 한 명이 판돈 전부 */
+export function settleFold(s: HandState, winner: number): Settlement {
+  const payouts = s.seats.map(() => 0)
+  payouts[winner] = potOf(s)
+  return { payouts, carry: 0 }
 }
 
 /**
- * 매치 수익. 기권/시간초과로 나간 사람은 이득을 챙길 수 없다(수익 상한 0).
+ * 쇼다운: 건 금액 단계별(사이드 팟)로 생존자 중 가장 높은 족보가 가져간다.
+ * 동점이면 나누고 남는 칩은 다음 판으로 이월. hands[i] 는 생존자의 카드.
  */
-export function matchProfit(finalChips: number, forfeited = false): number {
-  const p = finalChips - START_CHIPS
-  return forfeited ? Math.min(p, 0) : p
+export function settleShowdown(s: HandState, hands: readonly (Cards | null)[]): Settlement {
+  const payouts = s.seats.map(() => 0)
+  const levels = [...new Set(s.seats.map((x) => x.committed).filter((c) => c > 0))].sort((a, b) => a - b)
+  let prev = 0
+  let roll = 0
+  let carry = 0
+  let first = true
+  for (const lv of levels) {
+    const contributors = s.seats.filter((x) => x.committed >= lv).length
+    let amount = (lv - prev) * contributors + roll
+    roll = 0
+    if (first) {
+      amount += s.carryIn
+      first = false
+    }
+    prev = lv
+    const eligible = s.seats.map((x, i) => (isAlive(x) && x.committed >= lv ? i : -1)).filter((i) => i >= 0)
+    if (eligible.length === 0) {
+      roll = amount
+      continue
+    }
+    let winners = [eligible[0]]
+    for (const i of eligible.slice(1)) {
+      const c = compareHands(hands[i]!, hands[winners[0]]!)
+      if (c > 0) winners = [i]
+      else if (c === 0) winners.push(i)
+    }
+    const each = Math.floor(amount / winners.length)
+    carry += amount % winners.length
+    winners.forEach((w) => (payouts[w] += each))
+  }
+  return { payouts, carry: carry + roll }
 }
 
-/** 선 플레이어: 홀수 판은 좌석 0(먼저 대기한 사람), 짝수 판은 좌석 1 */
-export function leadSeat(handNo: number): Seat {
-  return handNo % 2 === 1 ? 0 : 1
+// ───────────────────────── 매치 ─────────────────────────
+
+export interface MatchSeat {
+  chips: number
+  left: boolean
+}
+
+/** 한 판이 끝난 뒤 매치 종료 여부. handNo 는 방금 끝난 판 번호(1부터). */
+export function matchOutcome(seats: readonly MatchSeat[], handNo: number): { finished: boolean; reason: 'bust' | 'forfeit' | 'complete' | null } {
+  const remaining = seats.filter((x) => !x.left && x.chips > 0).length
+  if (remaining <= 1) return { finished: true, reason: seats.some((x) => x.left) ? 'forfeit' : 'bust' }
+  if (handNo >= MAX_HANDS) return { finished: true, reason: 'complete' }
+  return { finished: false, reason: null }
+}
+
+/** 승자: 나가지 않은 사람 중 칩이 가장 많은 사람(동점이면 공동 승자) */
+export function matchWinners(seats: readonly MatchSeat[]): boolean[] {
+  const stay = seats.filter((x) => !x.left)
+  if (stay.length === 0) return seats.map(() => false)
+  const max = Math.max(...stay.map((x) => x.chips))
+  return seats.map((x) => !x.left && x.chips === max)
+}
+
+/** 매치 수익. 기권자는 이득을 챙길 수 없다(수익 상한 0). */
+export function matchProfit(finalChips: number, left = false, startChips = START_CHIPS): number {
+  const p = finalChips - startChips
+  return left ? Math.min(p, 0) : p
 }
 
 // ───────────────────────── 랭킹 ─────────────────────────

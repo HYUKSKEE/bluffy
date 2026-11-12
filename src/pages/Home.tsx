@@ -25,10 +25,10 @@ export default function Home() {
         <h1 className="mb-3 text-4xl leading-tight">
           링크 하나로 시작하는
           <br />
-          <span className="text-red">1:1</span> <span className="text-blue">카드 베팅</span> 대결
+          <span className="text-red">2~5인</span> <span className="text-blue">카드 베팅</span> 대결
         </h1>
         <p className="mb-8 max-w-xs leading-relaxed text-muted">
-          방을 만들고 링크를 공유하면 들어온 사람끼리 자동으로 1:1 매칭! 눈치 싸움으로 방 랭킹 1위를 노려보세요.
+          방을 만들고 링크를 공유하면 들어온 사람끼리 한 테이블에! 방장이 시작하면 눈치 싸움 시작, 방 랭킹 1위를 노려보세요.
         </p>
         <Link to="/create" className="candy w-full max-w-xs text-xl no-underline">방 만들기</Link>
         <button className="mt-5 text-muted underline underline-offset-4" onClick={() => setRules(true)}>30초 규칙 보기</button>

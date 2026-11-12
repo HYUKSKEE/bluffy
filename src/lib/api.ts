@@ -28,47 +28,64 @@ export interface RoomView {
   room: { id: string; title: string; mode: Mode; status: 'open' | 'closed'; created_at: string; closed_at: string | null }
   participants: number
   active_matches: number
+  waiting_tables: number
   ranking: RankRow[]
+}
+
+export interface SeatInfo {
+  seat: number
+  player_id: string
+  nickname: string
+  chips: number
+  left: boolean
+  is_host: boolean
+  profit: number | null
+  is_winner: boolean
+  in_hand: boolean
+  folded: boolean
+  committed: number
+}
+
+export interface HandResult {
+  reason: 'showdown' | 'fold'
+  pot: number
+  carry: number
+  winners: { seat: number; amount: number }[]
 }
 
 export interface MatchState {
   server_now: string
-  seat: 1 | 2
+  my_seat: number
   match: {
     id: string
     room_id: string
     room_status: 'open' | 'closed'
     mode: Mode
-    status: 'playing' | 'finished' | 'void'
+    status: 'waiting' | 'playing' | 'finished' | 'void'
     hand_no: number
     max_hands: number
-    chips1: number
-    chips2: number
+    start_chips: number
     carry: number
-    player1: { id: string; nickname: string }
-    player2: { id: string; nickname: string }
-    winner_id: string | null
+    host_player_id: string
     end_reason: 'bust' | 'complete' | 'forfeit' | 'void' | null
-    profit1: number | null
-    profit2: number | null
     next_hand_at: string | null
   }
+  seats: SeatInfo[]
   hand: null | {
     id: string
     hand_no: number
     status: 'betting' | 'finished' | 'void'
     pot: number
+    level: number
     current_bet: number
-    committed1: number
-    committed2: number
-    lead_player_id: string
-    turn_player_id: string | null
     raise_count: number
-    checks: number
+    lead_seat: number
+    turn_seat: number | null
     turn_deadline: string | null
-    result: null | { winner_id: string | null; reason: 'showdown' | 'tie' | 'fold' | 'forfeit'; pot: number; carry: number }
+    revealed: boolean
+    result: HandResult | null
   }
-  actions: { id: number; player_id: string; action: 'check' | 'bet' | 'raise' | 'call' | 'die'; amount: number; auto: boolean; created_at: string }[]
+  actions: { id: number; seat: number; player_id: string; action: 'check' | 'bet' | 'raise' | 'call' | 'die'; amount: number; auto: boolean; created_at: string }[]
 }
 
 /** 못 보는 카드는 null (서버가 모드·요청자에 따라 결정) */
@@ -76,12 +93,9 @@ export interface VisibleHand {
   hand_id: string
   hand_no: number
   mode: Mode
-  seat: 1 | 2
+  my_seat: number
   revealed: boolean
-  me: (number | null)[]
-  opp: (number | null)[]
-  me_open: 1 | 2 | null
-  opp_open: 1 | 2 | null
+  seats: { seat: number; cards: (number | null)[]; open: 1 | 2 | null }[]
 }
 
 // ───────────── 에러 ─────────────
@@ -114,6 +128,9 @@ const MESSAGES: Record<string, string> = {
   RAISE_LIMIT: '이번 판 레이즈 횟수를 모두 썼어요.',
   BAD_AMOUNT: '걸 수 없는 금액이에요.',
   FORBIDDEN: '관리 권한이 없어요. 관리 링크로 들어와주세요.',
+  NOT_HOST: '방장만 시작할 수 있어요.',
+  NOT_ENOUGH_PLAYERS: '2명 이상 모여야 시작할 수 있어요.',
+  ALREADY_STARTED: '이미 시작된 대결이에요.',
 }
 
 const CODE_RE = new RegExp(`(${Object.keys(MESSAGES).join('|')}|UNKNOWN_ACTION|HAND_NOT_FOUND)`)
@@ -167,8 +184,8 @@ export const api = {
   joinRoom: (roomId: string, nickname: string) => rpc<PlayerSelf>('card_join_room', { p_room_id: roomId, p_nickname: nickname }),
   myStatus: (roomId: string) => rpc<{ player: PlayerSelf | null; match_id: string | null }>('card_my_status', { p_room_id: roomId }),
   heartbeat: (roomId: string) => rpc<void>('card_heartbeat', { p_room_id: roomId }),
-  queueMatch: (roomId: string) => rpc<{ status: 'queued' | 'matched'; match_id?: string }>('card_queue_match', { p_room_id: roomId }),
-  cancelQueue: (roomId: string) => rpc<void>('card_cancel_queue', { p_room_id: roomId }),
+  queueMatch: (roomId: string) => rpc<{ status: 'waiting' | 'playing'; match_id: string }>('card_queue_match', { p_room_id: roomId }),
+  startMatch: (matchId: string) => rpc<{ status: 'playing'; match_id: string }>('card_start_match', { p_match_id: matchId }),
   getMatchState: (matchId: string) => rpc<MatchState>('card_get_match_state', { p_match_id: matchId }),
   getVisibleHand: (matchId: string, handNo?: number) =>
     rpc<VisibleHand | null>('card_get_visible_hand', { p_match_id: matchId, p_hand_no: handNo ?? null }),

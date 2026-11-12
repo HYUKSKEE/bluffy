@@ -4,8 +4,8 @@ import { api, friendly, isConnectionError, saveAdminToken, type Mode } from '../
 import { CopyButton, ErrorScreen, Logo } from '../components/ui'
 
 const MODES: { id: Mode; name: string; tagline: string; desc: string; tone: 'red' | 'blue' }[] = [
-  { id: 'A', name: 'A 모드 · 반공개', tagline: '정보는 적당히, 눈치는 팽팽하게', desc: '카드 2장 중 1장은 공개, 1장은 비공개. 나는 내 카드 2장과 상대의 공개 카드 1장을 봐요.', tone: 'blue' },
-  { id: 'B', name: 'B 모드 · 눈치', tagline: '내 카드는 이마에! 상대 표정을 읽어라', desc: '상대 카드 2장이 보이고, 내 카드는 보이지 않아요. 상대의 베팅이 유일한 힌트!', tone: 'red' },
+  { id: 'A', name: 'A 모드 · 반공개', tagline: '정보는 적당히, 눈치는 팽팽하게', desc: '카드 2장 중 1장은 공개, 1장은 비공개. 나는 내 카드 2장과 각 상대의 공개 카드 1장을 봐요.', tone: 'blue' },
+  { id: 'B', name: 'B 모드 · 눈치', tagline: '내 카드는 이마에! 상대 표정을 읽어라', desc: '모든 상대의 카드 2장이 보이고, 내 카드는 보이지 않아요. 상대들의 베팅이 유일한 힌트!', tone: 'red' },
 ]
 
 export default function Create() {
