@@ -22,7 +22,7 @@
 
 마이그레이션은 **기존 객체를 DROP/ALTER/REPLACE 하지 않습니다.** `create table` / `create function`(`or replace` 없음) / `create schema`(`if not exists` 없음)만 쓰므로, 같은 이름이 이미 있으면 덮어쓰지 않고 오류로 멈춥니다. 권한 `revoke`/`grant` 도 이 게임의 객체에만 하나씩 지정합니다(스키마 전체 대상 구문 없음). 이 동작은 테스트(`src/db/coexist.test.ts`)로 검증합니다. 기존 `rooms`, `create_room`, `act`, `game` 스키마가 있는 DB에 적용해도 데이터·권한·구조가 그대로입니다.
 
-> **이미 이전(1:1) 버전 SQL 을 실행했다면**: 새 마이그레이션은 기존 `card_*` 를 덮어쓰지 않습니다. `supabase/dev_reset_card_objects.sql` 을 한 번 실행해 `card_*` 객체만 지운 뒤(데이터 삭제됨, 다른 게임 객체는 그대로) 0001 → 0003 을 다시 실행하세요.
+> **이미 이전(1:1) 버전 SQL 을 실행했다면**: 새 마이그레이션은 기존 `card_*` 를 덮어쓰지 않습니다. `supabase/dev_reset_card_objects.sql` 을 한 번 실행해 `card_*` 객체만 지운 뒤(데이터 삭제됨, 다른 게임 객체는 그대로) 0001 → 0004 를 다시 실행하세요.
 
 ## 시작하기
 
@@ -38,6 +38,7 @@ Supabase **SQL Editor**에서 아래 파일을 **순서대로** 실행합니다.
 1. `supabase/migrations/0001_schema.sql` — 테이블, 제약, RLS, 권한
 2. `supabase/migrations/0002_game_engine.sql` — 덱 섞기, 베팅 검증, 승패 판정, 사이드 팟, 칩 계산(내부 함수)
 3. `supabase/migrations/0003_rpc.sql` — 클라이언트용 RPC 와 실행 권한
+4. `supabase/migrations/0004_spectate.sql` — 관전(읽기 전용) RPC: `card_list_tables`, `card_spectate_match`
 
 (Supabase CLI를 쓴다면 `supabase db push`.) 한 번만 실행하세요. 다시 실행하면 이미 있는 객체 때문에 오류로 멈추며, 기존 객체는 변경되지 않습니다.
 
@@ -125,6 +126,10 @@ npm run build      # 타입체크 + 프로덕션 빌드
 12. 닉네임은 방 안에서 대소문자 구분 없이 유일해야 하며 1~12자입니다. 한 방은 최대 200명. 같은 브라우저(익명 계정)가 다시 들어오면 기존 참가자로 복귀합니다. 시크릿 창/다른 기기는 다른 참가자입니다.
 13. **탈락/관전/다이한 사람의 시야**: 칩이 없어 탈락했거나 이번 판을 쉬는 사람, 다이한 사람도 같은 모드 규칙으로 보입니다. B 모드에서는 다른 사람들의 카드가 그대로 보입니다(오프라인에서 다이한 사람도 이마 카드를 보는 것과 같음). 따라서 B 모드에서 탈락자가 몰래 내 카드를 알려주는 것은 막을 수 없습니다(보안 설계의 한계 참고).
 
+## 관전
+
+방에 닉네임으로 입장한 사람은 로비의 "진행 중인 테이블"에서 👀 관전할 수 있습니다. 관전자는 좌석·칩·판돈·차례·행동 로그와 **쇼다운으로 공개된 카드**만 봅니다. 진행 중인 판의 카드 값은 모드(A/B)와 관계없이 전달되지 않습니다(B 모드는 참가자끼리 서로의 카드를 보므로, 관전자에게 보이면 참가자에게 몰래 알려줄 수 있기 때문). 관전자는 행동·시작·나가기를 할 수 없습니다. 검증: `src/db/spectate.test.ts`.
+
 ## 보안 설계
 
 핵심: **숨겨야 할 카드 값은 어떤 경로로도 브라우저에 전달되지 않습니다.**
@@ -151,6 +156,7 @@ npm test
 | `src/game/rules.test.ts` | 족보 판정, 다인 베팅 순서(레이즈 후 재행동), 판돈 분배·사이드 팟·무승부 이월, 베팅 검증(차례·금액·레이즈 횟수·올인), 탈락/기권, 매치 종료/수익, 랭킹 정렬, 무작위 사이드 팟 500회 칩 보존 |
 | `src/db/visibility.test.ts` | **모드별 `get_visible_hand` 가 숨긴 카드를 반환하지 않는지**(A/B × 2·3·5명, 쇼다운·다이 이후, 다이한 사람 카드 비공개), 테이블 직접 접근 차단, 내부 함수/anon 차단, 응답에 카드·uid 없음, Realtime 신호에 값 없음 |
 | `src/db/engine.test.ts` | 대기 테이블(방장 시작, 5명 자동 시작, 방장 위임, 유령 대기자 정리), 서버측 베팅 검증, 사이드 팟/이월, 타임아웃·기권·이탈, 방 종료, 랭킹. **TS 규칙 엔진과 SQL 엔진 교차 검증**(2~5명 무작위 40매치: 매 행동마다 칩·차례·판돈을 대조하고 정산 결과를 대조) |
+| `src/db/spectate.test.ts` | 관전: 진행 중 카드 미전달, 쇼다운 후 생존자 카드만 공개, 권한(방 입장자만), 테이블 목록 |
 | `src/db/coexist.test.ts` | 기존 객체(다른 게임)와 공존: 이름 충돌 없음, 기존 데이터·권한·구조 불변, 마이그레이션에 DROP/REPLACE 없음 |
 
 DB 테스트는 [PGlite](https://pglite.dev)(WASM Postgres)에 `supabase/migrations/*.sql` 을 그대로 적용해 실행하므로 로컬에 Postgres/Docker 가 필요 없습니다. Supabase 가 제공하는 `auth.uid()`, `anon`/`authenticated` 역할, 기본 권한, `realtime.send` 는 `src/db/harness.ts` 가 흉내 냅니다.

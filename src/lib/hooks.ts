@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, subscribeSignal, type MatchState, type PlayerSelf, type RoomView, type VisibleHand } from './api'
+import { api, subscribeSignal, type MatchState, type PlayerSelf, type RoomView, type SpectateState, type TableInfo, type VisibleHand } from './api'
 
 /** 초 단위 이하로 갱신되는 현재 시각(ms). 서버 시계 보정은 호출하는 쪽에서 offset 을 더한다. */
 export function useTicker(intervalMs = 250): number {
@@ -140,4 +140,61 @@ export function useMatch(matchId: string) {
   }, [now, state, refresh])
 
   return { state, cards, error, refresh, serverNow }
+}
+
+// ───────────── 관전 ─────────────
+export function useSpectate(matchId: string) {
+  const [state, setState] = useState<SpectateState | null>(null)
+  const [error, setError] = useState<unknown>(null)
+  const offset = useRef(0)
+
+  const refresh = useCoalesced(async () => {
+    try {
+      const st = await api.spectateMatch(matchId)
+      offset.current = new Date(st.server_now).getTime() - Date.now()
+      setState(st)
+      setError(null)
+    } catch (e) {
+      setError(e)
+    }
+  })
+
+  useEffect(() => {
+    void refresh()
+    const off = subscribeSignal(`card_match:${matchId}`, () => void refresh())
+    const poll = setInterval(() => void refresh(), 3000)
+    const onVis = () => document.visibilityState === 'visible' && void refresh()
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      off()
+      clearInterval(poll)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [matchId, refresh])
+
+  const serverNow = useCallback(() => Date.now() + offset.current, [])
+  return { state, error, refresh, serverNow }
+}
+
+/** 로비의 테이블 목록 (대기 중 + 진행 중) */
+export function useTables(roomId: string, enabled: boolean) {
+  const [tables, setTables] = useState<TableInfo[]>([])
+  const refresh = useCoalesced(async () => {
+    try {
+      setTables(await api.listTables(roomId))
+    } catch {
+      /* 목록은 부가 정보라 실패해도 로비는 계속 쓴다 */
+    }
+  })
+  useEffect(() => {
+    if (!enabled) return
+    void refresh()
+    const off = subscribeSignal(`card_room:${roomId}`, () => void refresh())
+    const poll = setInterval(() => void refresh(), 5000)
+    return () => {
+      off()
+      clearInterval(poll)
+    }
+  }, [roomId, enabled, refresh])
+  return tables
 }

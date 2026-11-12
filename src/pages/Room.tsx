@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, friendly, GameError, isConnectionError, type RankRow } from '../lib/api'
 import { ensureAuth } from '../lib/supabase'
-import { useRoom } from '../lib/hooks'
+import { useRoom, useTables } from '../lib/hooks'
 import { Chips, CopyButton, ErrorScreen, Logo, RulesModal, Spinner } from '../components/ui'
 import MatchScreen from './MatchScreen'
+import SpectateScreen from './SpectateScreen'
 
 const NICK_KEY = 'bluffy_nick'
 
@@ -41,6 +42,8 @@ export default function Room() {
   const [msg, setMsg] = useState<string | null>(null)
   const [rules, setRules] = useState(false)
   const [inMatch, setInMatch] = useState<string | null>(null)
+  const [watching, setWatching] = useState<string | null>(null)
+  const tables = useTables(id, Boolean(player) && !inMatch && !watching)
 
   useEffect(() => { ensureAuth().catch(() => setAuthFail(true)) }, [])
   // 재접속 시 진행 중인 매치로 자동 복귀
@@ -52,6 +55,8 @@ export default function Room() {
     return <ErrorScreen title="방을 열 수 없어요" message={friendly(error)} />
   }
   if (!view || player === undefined) return <Spinner label="방에 들어가는 중..." />
+
+  if (watching && player) return <SpectateScreen matchId={watching} onExit={() => { setWatching(null); void refresh() }} />
 
   if (inMatch && player) {
     return <MatchScreen matchId={inMatch} myPlayerId={player.id} onExit={() => { setInMatch(null); setMatchId(null); void refresh() }} />
@@ -141,6 +146,23 @@ export default function Room() {
         </button>
         <p className="mt-3 text-center text-sm text-muted">2~5명이 한 테이블 · 시작 칩 <Chips n={100} /> · 최대 10판 · 방장이 시작해요</p>
       </section>
+
+      {tables.some((t) => t.status === 'playing') && (
+        <section className="mt-6">
+          <h2 className="mb-3 text-2xl">진행 중인 테이블</h2>
+          <ul className="space-y-2">
+            {tables.filter((t) => t.status === 'playing').map((t) => (
+              <li key={t.match_id} className="jelly-panel flex items-center justify-between gap-3 !rounded-2xl px-4 py-3">
+                <div className="min-w-0">
+                  <div className="truncate">{t.players.join(' · ')}</div>
+                  <div className="text-xs text-muted">{Math.max(1, t.hand_no)} / {t.max_hands} 판 · {t.seats}명</div>
+                </div>
+                <button className="candy candy-dark candy-sm flex-none" onClick={() => setWatching(t.match_id)}>👀 관전</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="mt-6">
         <h2 className="mb-3 flex items-center justify-between text-2xl">방 랭킹 <span className="text-sm text-muted">실시간</span></h2>

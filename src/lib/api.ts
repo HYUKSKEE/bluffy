@@ -88,6 +88,22 @@ export interface MatchState {
   actions: { id: number; seat: number; player_id: string; action: 'check' | 'bet' | 'raise' | 'call' | 'die'; amount: number; auto: boolean; created_at: string }[]
 }
 
+/** 관전용 상태: 쇼다운으로 공개된 카드만 포함 */
+export type SpectateState = Omit<MatchState, 'my_seat'> & {
+  my_seat: null
+  revealed_cards: { seat: number; cards: number[] }[]
+}
+
+export interface TableInfo {
+  match_id: string
+  status: 'waiting' | 'playing'
+  hand_no: number
+  max_hands: number
+  seats: number
+  host: string
+  players: string[]
+}
+
 /** 못 보는 카드는 null (서버가 모드·요청자에 따라 결정) */
 export interface VisibleHand {
   hand_id: string
@@ -187,6 +203,8 @@ export const api = {
   queueMatch: (roomId: string) => rpc<{ status: 'waiting' | 'playing'; match_id: string }>('card_queue_match', { p_room_id: roomId }),
   startMatch: (matchId: string) => rpc<{ status: 'playing'; match_id: string }>('card_start_match', { p_match_id: matchId }),
   getMatchState: (matchId: string) => rpc<MatchState>('card_get_match_state', { p_match_id: matchId }),
+  listTables: (roomId: string) => rpc<TableInfo[]>('card_list_tables', { p_room_id: roomId }),
+  spectateMatch: (matchId: string) => rpc<SpectateState>('card_spectate_match', { p_match_id: matchId }),
   getVisibleHand: (matchId: string, handNo?: number) =>
     rpc<VisibleHand | null>('card_get_visible_hand', { p_match_id: matchId, p_hand_no: handNo ?? null }),
   act: (handId: string, action: 'check' | 'bet' | 'raise' | 'call' | 'die', amount = 0) =>

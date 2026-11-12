@@ -6,7 +6,7 @@
 -- 언제 쓰나: 예전(1:1 버전) 마이그레이션을 이미 실행했는데 새 버전(2~5인)으로 바꾸고 싶을 때.
 --           (새 마이그레이션은 기존 객체를 덮어쓰지 않으므로, 같은 이름이 있으면 오류로 멈춥니다.)
 -- 주의: card_ 테이블의 데이터(방, 참가자, 랭킹)가 모두 사라집니다. 이 스크립트를 실행한 뒤
---       0001 → 0002 → 0003 마이그레이션을 다시 실행하세요.
+--       0001 → 0002 → 0003 → 0004 마이그레이션을 다시 실행하세요.
 
 -- 공개 RPC (현재 + 이전 버전에 있던 시그니처)
 drop function if exists public.card_create_room(text, text);
@@ -25,6 +25,8 @@ drop function if exists public.card_timeout_check(uuid);
 drop function if exists public.card_advance_match(uuid);
 drop function if exists public.card_verify_admin(uuid, text);
 drop function if exists public.card_close_room(uuid, text);
+drop function if exists public.card_list_tables(uuid);           -- 0004 관전
+drop function if exists public.card_spectate_match(uuid);       -- 0004 관전
 
 -- 테이블 (card_ 접두어만, 외래키 순서와 무관하게 한 번에)
 drop table if exists
