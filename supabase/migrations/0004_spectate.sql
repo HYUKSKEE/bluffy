@@ -1,9 +1,9 @@
 -- 0004: 관전 (읽기 전용)
 -- 새 함수만 추가한다. 기존 card_* 함수/테이블/다른 게임 객체는 건드리지 않는다.
 --
--- 관전자가 보는 것: 좌석·칩·판돈·차례·행동 로그(공개 정보) + "쇼다운으로 공개된 카드"뿐.
--- 진행 중인 판의 카드 값은 어떤 경로로도 관전자에게 가지 않는다
--- (B 모드는 참가자끼리 서로의 카드를 보기 때문에, 관전자에게 보여주면 참가자에게 몰래 알려줄 수 있다).
+-- 관전자가 보는 것: 좌석·칩·판돈·차례·행동 로그 + "이번 판에 참여 중인 모든 좌석의 카드"(seat_cards).
+-- 관전자는 참가자가 아니므로 행동할 수 없다. (주의: 관전자가 참가자에게 카드를 몰래 알려주면 부정행위가 되므로
+--  README 의 '관전' 항목에 이 점을 명시했다.)
 
 -- 방에서 진행 중/대기 중인 테이블 목록 (관전 진입용)
 create function public.card_list_tables(p_room_id uuid)
@@ -29,7 +29,7 @@ begin
   ), '[]'::jsonb);
 end $$;
 
--- 관전용 상태: card_get_match_state 와 같은 모양 + 쇼다운으로 공개된 카드(revealed_cards)
+-- 관전용 상태: card_get_match_state 와 같은 모양 + 이번 판 참여 좌석의 카드(seat_cards)
 create function public.card_spectate_match(p_match_id uuid)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -62,10 +62,8 @@ begin
              'id', a.id, 'seat', a.seat, 'player_id', a.player_id, 'action', a.action, 'amount', a.amount,
              'auto', a.auto, 'created_at', a.created_at) order by a.id), '[]'::jsonb)
       into v_actions from card_actions a where a.hand_id = h.id;
-    if h.revealed then                                                   -- 쇼다운 생존자의 카드만, 공개된 뒤에만
-      select coalesce(jsonb_agg(jsonb_build_object('seat', hs.seat, 'cards', to_jsonb(hs.cards)) order by hs.seat), '[]'::jsonb)
-        into v_cards from card_hand_seats hs where hs.hand_id = h.id and hs.in_hand and not hs.folded;
-    end if;
+    select coalesce(jsonb_agg(jsonb_build_object('seat', hs.seat, 'cards', to_jsonb(hs.cards)) order by hs.seat), '[]'::jsonb)
+      into v_cards from card_hand_seats hs where hs.hand_id = h.id and hs.in_hand;
   end if;
 
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -90,7 +88,7 @@ begin
     'seats', v_seats,
     'hand', v_hand,
     'actions', v_actions,
-    'revealed_cards', v_cards);
+    'seat_cards', v_cards);
 end $$;
 
 -- 이 파일의 함수 두 개에만 권한을 준다 (다른 객체의 권한은 건드리지 않음)

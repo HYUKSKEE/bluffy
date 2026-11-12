@@ -88,10 +88,10 @@ export interface MatchState {
   actions: { id: number; seat: number; player_id: string; action: 'check' | 'bet' | 'raise' | 'call' | 'die'; amount: number; auto: boolean; created_at: string }[]
 }
 
-/** 관전용 상태: 쇼다운으로 공개된 카드만 포함 */
+/** 관전용 상태: 이번 판 참여 좌석의 카드 포함 */
 export type SpectateState = Omit<MatchState, 'my_seat'> & {
   my_seat: null
-  revealed_cards: { seat: number; cards: number[] }[]
+  seat_cards: { seat: number; cards: number[] }[]
 }
 
 export interface TableInfo {

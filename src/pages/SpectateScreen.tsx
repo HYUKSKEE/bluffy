@@ -9,7 +9,7 @@ const MatchStage = lazy(() => import('../components/MatchStage'))
 const ACTION_LABEL = { check: '체크', bet: '베팅', raise: '레이즈', call: '콜', die: '다이' } as const
 const short = (s: string) => (s.length > 7 ? s.slice(0, 7) + '…' : s)
 
-/** 읽기 전용 관전 화면. 진행 중인 카드는 보이지 않고, 쇼다운으로 공개된 카드만 보인다. */
+/** 읽기 전용 관전 화면. 참여 중인 모든 좌석의 카드가 보인다. */
 export default function SpectateScreen({ matchId, onExit }: { matchId: string; onExit: () => void }) {
   const { state, error, refresh } = useSpectate(matchId)
   useTicker(500)
@@ -28,7 +28,7 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
   const over = m.status === 'finished' || m.status === 'void'
   const res = h?.result ?? null
   const winnerSeats = new Set(res?.winners.map((w) => w.seat) ?? [])
-  const shown = new Map(state.revealed_cards.map((c) => [c.seat, c.cards]))
+  const shown = new Map(state.seat_cards.map((c) => [c.seat, c.cards]))
   const nameOfSeat = (seat: number) => state.seats.find((s) => s.seat === seat)?.nickname ?? '?'
 
   const stageOpps: StageOpp[] = state.seats.map((o) => {
@@ -102,7 +102,7 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
           </div>
         )}
         <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-xs text-muted">
-          진행 중인 카드는 비밀이에요 — 쇼다운 때만 공개돼요
+          관전자는 모든 카드를 볼 수 있어요 — 참가자에게 알려주면 안 돼요!
         </p>
       </section>
 

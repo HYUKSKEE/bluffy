@@ -13,7 +13,7 @@ async function joinSpectator(roomId: string, nick = '구경꾼') {
 }
 
 describe.each(['A', 'B'] as const)('관전 — %s 모드', (mode) => {
-  it('진행 중인 판의 카드 값은 관전자에게 어떤 형태로도 가지 않는다', async () => {
+  it('참여 중인 모든 좌석의 카드가 서버 정답과 일치하게 보인다', async () => {
     const t = await setupMatch(db, mode, 3)
     const spec = await joinSpectator(t.roomId)
     const st = await rpc(db, spec, 'spectate_match', t.matchId)
@@ -21,43 +21,22 @@ describe.each(['A', 'B'] as const)('관전 — %s 모드', (mode) => {
     expect(st.my_seat).toBeNull()
     expect(st.hand.status).toBe('betting')
     expect(st.seats).toHaveLength(3)
-    expect(st.revealed_cards).toEqual([])
-
-    // 정답 카드 값이 응답 문자열 어디에도 "cards" 로 실려 오지 않는다
-    const json = JSON.stringify(st)
-    expect(json).not.toMatch(/"cards"/)
-    expect(json).not.toMatch(/open_idx/)
-    expect(json).not.toMatch(/deck/)
-  })
-
-  it('쇼다운으로 공개된 뒤에는 생존자 카드만 보인다', async () => {
-    const t = await setupMatch(db, mode, 3)
-    const spec = await joinSpectator(t.roomId)
-    // 전원 체크 → 쇼다운
-    for (;;) {
-      const st = await rpc(db, t.ua, 'get_match_state', t.matchId)
-      if (st.hand.status === 'finished') break
-      await rpc(db, t.users[st.hand.turn_seat - 1], 'act', st.hand.id, 'check', 0)
-    }
-    const st = await rpc(db, spec, 'spectate_match', t.matchId)
-    expect(st.hand.revealed).toBe(true)
-    expect(st.revealed_cards).toHaveLength(3)
+    expect(st.seat_cards).toHaveLength(3)
     const truth = await sql(db, 'select seat, cards from card_hand_seats where hand_id = $1 order by seat', [st.hand.id])
-    for (const row of st.revealed_cards) {
+    for (const row of st.seat_cards) {
       expect(row.cards).toEqual(truth.rows.find((x: any) => x.seat === row.seat).cards)
     }
+    expect(JSON.stringify(st)).not.toMatch(/deck/) // 남은 덱은 보내지 않는다
   })
 
-  it('다이로 끝난 판(공개 안 됨)은 카드가 나오지 않는다', async () => {
+  it('다이한 사람의 카드도 판이 끝날 때까지 보이고, 탈락 좌석은 빠진다', async () => {
     const t = await setupMatch(db, mode, 2)
     const spec = await joinSpectator(t.roomId)
     const st0 = await rpc(db, t.ua, 'get_match_state', t.matchId)
     await rpc(db, t.users[st0.hand.turn_seat - 1], 'act', st0.hand.id, 'die', 0)
     const st = await rpc(db, spec, 'spectate_match', t.matchId)
     expect(st.hand.status).toBe('finished')
-    expect(st.hand.revealed).toBe(false)
-    expect(st.revealed_cards).toEqual([])
-    expect(JSON.stringify(st)).not.toMatch(/"cards"/)
+    expect(st.seat_cards).toHaveLength(2)
   })
 })
 
