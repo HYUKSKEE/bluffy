@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { createDb, newUser, rpc, setupMatch, setupWaiting, sql, type Db, type Table } from './harness'
 import {
-  applyAction, leadSeat, legalActions, settleFold, settleShowdown, startHand, timeoutAction,
+  applyAction, leadSeat, legalActions, raiseAmounts, settleFold, settleShowdown, startHand, timeoutAction,
   type Action, type Cards, type HandEnd, type HandState,
 } from '../game/rules'
 
@@ -670,7 +670,8 @@ describe('TS 규칙 엔진과 SQL 엔진 교차 검증 (무작위 플레이)', (
         const opts: Action[] = [{ type: 'die' }]
         if (la.canCheck) opts.push({ type: 'check' })
         if (la.canCall) opts.push({ type: 'call' })
-        if (la.canRaise) opts.push({ type: la.raiseKind, amount: 1 + Math.floor(rng() * la.raiseMax) })
+        const amounts = raiseAmounts(la)
+        if (la.canRaise) opts.push({ type: la.raiseKind, amount: amounts[Math.floor(rng() * amounts.length)] })
         let a = opts[Math.floor(rng() * opts.length)]
         if (rng() < 0.05) a = timeoutAction(shadow!, seat)
 
@@ -679,6 +680,15 @@ describe('TS 규칙 엔진과 SQL 엔진 교차 검증 (무작위 플레이)', (
         if (!la.canCall) await expect(act(uid, st.hand.id, 'call')).rejects.toThrow(/NOTHING_TO_CALL/)
         if (!la.canRaise && la.raiseMax === 0 && st.hand.raise_count >= 3) {
           await expect(act(uid, st.hand.id, la.raiseKind, 1)).rejects.toThrow(/RAISE_LIMIT/)
+        }
+
+        // 앤티의 배수가 아니면서 올인도 아닌 금액은 TS·서버 모두 거부
+        if (la.canRaise && la.unit > 1) {
+          const bad = [1, 2, 3, 4, 5, 7].find((x) => x <= la.raiseMax && x % la.unit !== 0 && !amounts.includes(x))
+          if (bad !== undefined) {
+            expect(applyAction(shadow!, seat, { type: la.raiseKind, amount: bad })).toMatchObject({ ok: false, error: 'BAD_AMOUNT' })
+            await expect(act(uid, st.hand.id, la.raiseKind, bad)).rejects.toThrow(/BAD_AMOUNT/)
+          }
         }
 
         const r = applyAction(shadow!, seat, a)
@@ -708,5 +718,23 @@ describe('TS 규칙 엔진과 SQL 엔진 교차 검증 (무작위 플레이)', (
     expect(showdowns).toBeGreaterThan(20)
     expect(folds).toBeGreaterThan(20)
     expect(multiway).toBeGreaterThan(5)
+  })
+})
+
+describe('베팅 단위 = 앤티(판 번호)', () => {
+  it('서버: 5판이면 5·10·15칩만 가능하고, 올인은 예외로 허용', async () => {
+    const t = await setupMatch(db, 'A', 2)
+    const { st, uid } = await turn(t)
+    await sql(db, 'update card_hands set hand_no = 5 where id = $1', [st.hand.id]) // 앤티·베팅 단위 5
+    for (const bad of [1, 3, 4, 6, 16]) await expect(act(uid, st.hand.id, 'bet', bad)).rejects.toThrow(/BAD_AMOUNT/)
+    await act(uid, st.hand.id, 'bet', 10)
+    expect((await state(t)).hand).toMatchObject({ pot: 12, level: 11, current_bet: 10 })
+
+    // 칩이 모자란 상대: 콜 금액을 빼고 7칩만 남으면 7(올인)은 가능, 6은 불가
+    const { st: st2, uid: o, seat } = await turn(t)
+    await sql(db, 'update card_match_players set chips = 10 + 7 where match_id = $1 and seat = $2', [t.matchId, seat])
+    await expect(act(o, st2.hand.id, 'raise', 6)).rejects.toThrow(/BAD_AMOUNT/)
+    await act(o, st2.hand.id, 'raise', 7)
+    expect((await state(t)).hand.level).toBe(18)
   })
 })

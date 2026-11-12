@@ -1,7 +1,7 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { api, friendly, isConnectionError, type MatchState, type SeatInfo, type VisibleHand } from '../lib/api'
 import { useMatch, useTicker } from '../lib/hooks'
-import { anteFor, legalFor, TURN_SECONDS } from '../game/rules'
+import { anteFor, legalFor, raiseAmounts, TURN_SECONDS } from '../game/rules'
 import { Chips, ErrorScreen, Modal, PileBadge, RulesModal, Spinner } from '../components/ui'
 import type { StageCard, StageOpp } from '../components/MatchStage'
 import TableWaiting from './TableWaiting'
@@ -72,7 +72,7 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
   const nameOfSeat = (seat: number) => state.seats.find((s) => s.seat === seat)?.nickname ?? '?'
   const res = h?.result ?? null
   const legal = betting && me.in_hand && !me.folded
-    ? legalFor({ chips: me.chips, committed: me.committed, level: h!.level, raiseCount: h!.raise_count })
+    ? legalFor({ chips: me.chips, committed: me.committed, level: h!.level, raiseCount: h!.raise_count, unit: anteFor(h!.hand_no) })
     : null
 
   // 카드는 같은 판의 것만 사용 (판이 막 바뀐 순간의 어긋남 방지)
@@ -225,11 +225,14 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
           {betting && legal ? (
             <div className="flex flex-col gap-2.5">
               <div className="grid grid-cols-3 gap-2.5">
-                {[1, 2, 3].map((n) => (
-                  <button key={n} className="candy candy-blue" disabled={!myTurn || busy || !legal.canRaise || n > legal.raiseMax} onClick={() => void doAct(legal.raiseKind, n)}>
-                    {legal.raiseKind === 'bet' ? '베팅' : '레이즈'} +{n}
-                  </button>
-                ))}
+                {[0, 1, 2].map((k) => {
+                  const n = raiseAmounts(legal)[k]
+                  return (
+                    <button key={k} className="candy candy-blue" disabled={!myTurn || busy || !legal.canRaise || n === undefined} onClick={() => n !== undefined && void doAct(legal.raiseKind, n)}>
+                      {n === undefined ? '-' : `${legal.raiseKind === 'bet' ? '베팅' : '레이즈'} +${n}`}
+                    </button>
+                  )
+                })}
               </div>
               <div className="grid grid-cols-[1.6fr_1fr] gap-2.5">
                 {legal.canCall ? (

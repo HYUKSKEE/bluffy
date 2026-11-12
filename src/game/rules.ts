@@ -15,6 +15,7 @@ export const MAX_PLAYERS = 5
 /** 기본 판돈(앤티) = 판 번호: 1판 1칩 ... 10판 10칩. 계속 다이만 해서 이기는 전략을 막는다. */
 export const anteFor = (handNo: number) => Math.max(1, handNo)
 export const MAX_RAISES = 3
+/** 한 번에 올릴 수 있는 최대 칸 수 (1칸 = 앤티) */
 export const MAX_RAISE_AMOUNT = 3
 export const TURN_SECONDS = 20
 export const IDLE_FORFEIT_SECONDS = 60
@@ -90,6 +91,8 @@ export interface HandState {
   raiseCount: number
   /** 지금 행동할 좌석. 베팅 없이 끝나는 판은 null */
   turn: number | null
+  /** 베팅 1칸의 칩 수 = 앤티 = 판 번호 */
+  unit: number
 }
 
 export type Action =
@@ -151,7 +154,7 @@ export function startHand(chips: readonly number[], carry: number, lead: number,
   if (seats.filter((x) => x.pending).length <= 1) seats.forEach((x) => (x.pending = false))
   const level = Math.max(0, ...seats.map((x) => x.committed))
   const { turn, end } = resolve(seats, lead, true)
-  return { state: { seats, carryIn: carry, level, raiseCount: 0, turn }, end }
+  return { state: { seats, carryIn: carry, level, raiseCount: 0, turn, unit: ante }, end }
 }
 
 /** 선: 판마다 한 칸씩 이동 (칩이 남은 사람 기준). handNo 는 1부터. */
@@ -168,13 +171,17 @@ export interface LegalActions {
   canRaise: boolean
   /** 'bet' (올린 금액이 없을 때) 또는 'raise' */
   raiseKind: 'bet' | 'raise'
+  /** 올릴 수 있는 최대 칩 (칸 수 × 앤티, 가진 칩이 모자라면 올인 금액) */
   raiseMax: number
+  /** 베팅 1칸 = 앤티 */
+  unit: number
   canDie: boolean
 }
 
-export function legalFor(p: { chips: number; committed: number; level: number; raiseCount: number }): LegalActions {
+export function legalFor(p: { chips: number; committed: number; level: number; raiseCount: number; unit?: number }): LegalActions {
   const need = p.level - p.committed
-  const rm = p.raiseCount >= MAX_RAISES ? 0 : Math.max(0, Math.min(MAX_RAISE_AMOUNT, p.chips - need))
+  const unit = p.unit ?? 1
+  const rm = p.raiseCount >= MAX_RAISES ? 0 : Math.max(0, Math.min(MAX_RAISE_AMOUNT * unit, p.chips - need))
   return {
     canCheck: need === 0,
     canCall: need > 0,
@@ -182,12 +189,21 @@ export function legalFor(p: { chips: number; committed: number; level: number; r
     canRaise: rm >= 1,
     raiseKind: need === 0 ? 'bet' : 'raise',
     raiseMax: rm,
+    unit,
     canDie: true,
   }
 }
 
 export function legalActions(s: HandState, i: number): LegalActions {
-  return legalFor({ chips: s.seats[i].chips, committed: s.seats[i].committed, level: s.level, raiseCount: s.raiseCount })
+  return legalFor({ chips: s.seats[i].chips, committed: s.seats[i].committed, level: s.level, raiseCount: s.raiseCount, unit: s.unit })
+}
+
+/** 고를 수 있는 베팅/레이즈 금액: 1·2·3칸(앤티의 배수)과, 칩이 모자랄 때의 올인 금액 */
+export function raiseAmounts(l: Pick<LegalActions, 'raiseMax' | 'unit'>): number[] {
+  const out: number[] = []
+  for (let k = 1; k <= MAX_RAISE_AMOUNT; k++) if (k * l.unit <= l.raiseMax) out.push(k * l.unit)
+  if (l.raiseMax > 0 && !out.includes(l.raiseMax)) out.push(l.raiseMax)
+  return out
 }
 
 export function applyAction(s: HandState, seat: number, a: Action): ApplyResult {
@@ -208,8 +224,10 @@ export function applyAction(s: HandState, seat: number, a: Action): ApplyResult 
     case 'raise': {
       if ((a.type === 'bet') !== (need === 0)) return { ok: false, error: 'WRONG_ACTION' }
       if (raiseCount >= MAX_RAISES) return { ok: false, error: 'RAISE_LIMIT' }
-      const mx = Math.min(MAX_RAISE_AMOUNT, me.chips - need)
+      const mx = Math.min(MAX_RAISE_AMOUNT * s.unit, me.chips - need)
       if (!Number.isInteger(a.amount) || a.amount < 1 || a.amount > mx) return { ok: false, error: 'BAD_AMOUNT' }
+      // 앤티의 배수만 가능. 칩이 모자라면 남은 칩 전부(올인)는 허용
+      if (a.amount % s.unit !== 0 && a.amount !== me.chips - need) return { ok: false, error: 'BAD_AMOUNT' }
       const pay = need + a.amount
       mine.chips -= pay
       mine.committed += pay
@@ -236,7 +254,7 @@ export function applyAction(s: HandState, seat: number, a: Action): ApplyResult 
     })
   }
   const { turn, end } = resolve(seats, seat, false)
-  return { ok: true, state: { seats, carryIn: s.carryIn, level, raiseCount, turn }, end }
+  return { ok: true, state: { seats, carryIn: s.carryIn, level, raiseCount, turn, unit: s.unit }, end }
 }
 
 /** 시간 초과 시 자동 행동: 체크 가능하면 체크, 아니면 다이 */

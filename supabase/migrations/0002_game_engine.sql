@@ -354,8 +354,11 @@ begin
   elsif p_action in ('bet', 'raise') then
     if (p_action = 'bet') <> (to_call = 0) then raise exception 'WRONG_ACTION'; end if;
     if v_raise >= 3 then raise exception 'RAISE_LIMIT'; end if;
-    mx := least(3, my_stack - to_call);       -- 최대 3칩, 가진 칩(콜 금액 제외)을 넘을 수 없다
-    if p_amount is null or p_amount < 1 or p_amount > mx then raise exception 'BAD_AMOUNT'; end if;
+    -- 베팅 1칸 = 앤티 = 판 번호. 최대 3칸, 가진 칩(콜 금액 제외)을 넘을 수 없다.
+    -- 금액은 앤티의 배수여야 하고, 칩이 모자라면 남은 칩 전부(올인)도 가능하다.
+    mx := least(3 * h.hand_no, my_stack - to_call);
+    if p_amount is null or p_amount < 1 or p_amount > mx
+       or (p_amount % h.hand_no <> 0 and p_amount <> my_stack - to_call) then raise exception 'BAD_AMOUNT'; end if;
     pay := to_call + p_amount;
     my_stack := my_stack - pay;
     my_c := my_c + pay;

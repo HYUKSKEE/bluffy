@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  anteFor, applyAction, buildDeck, compareHands, compareRank, deal, evaluate, forfeitSeat, leadSeat, legalActions,
+  anteFor, applyAction, raiseAmounts, buildDeck, compareHands, compareRank, deal, evaluate, forfeitSeat, leadSeat, legalActions,
   matchOutcome, matchProfit, matchWinners, potOf, settleFold, settleShowdown, shuffle, startHand, timeoutAction,
   toCall, type Action, type Cards, type HandEnd, type HandState,
 } from './rules'
@@ -368,5 +368,27 @@ describe('랭킹 정렬', () => {
       { n: 'd', total_profit: 9, matches_won: 0, joined_at: '2026-01-01T00:00:09Z' },
     ]
     expect(rows.sort(compareRank).map((r) => r.n)).toEqual(['d', 'b', 'a', 'c'])
+  })
+})
+
+describe('베팅 단위 = 앤티', () => {
+  it('5판: 5·10·15칩, 올인이 단위보다 작으면 그 금액만', () => {
+    const { state } = startHand([100, 100], 0, 0, 5)
+    const l = legalActions(state, 0)
+    expect(l).toMatchObject({ unit: 5, raiseMax: 15 })
+    expect(raiseAmounts(l)).toEqual([5, 10, 15])
+    expect(applyAction(state, 0, { type: 'bet', amount: 4 })).toMatchObject({ ok: false, error: 'BAD_AMOUNT' })
+    expect(applyAction(state, 0, { type: 'bet', amount: 16 })).toMatchObject({ ok: false, error: 'BAD_AMOUNT' })
+    expect(applyAction(state, 0, { type: 'bet', amount: 10 })).toMatchObject({ ok: true })
+    // 앤티 5를 내고 칩이 3 남음 → 3(올인)만 가능
+    const short = startHand([8, 100], 0, 0, 5).state
+    const ls = legalActions(short, 0)
+    expect(raiseAmounts(ls)).toEqual([3])
+    expect(applyAction(short, 0, { type: 'bet', amount: 3 })).toMatchObject({ ok: true })
+    expect(applyAction(short, 0, { type: 'bet', amount: 2 })).toMatchObject({ ok: false })
+  })
+  it('1판은 이전과 같다 (1·2·3칩)', () => {
+    const l = legalActions(startHand([100, 100], 0, 0, 1).state, 0)
+    expect(raiseAmounts(l)).toEqual([1, 2, 3])
   })
 })
