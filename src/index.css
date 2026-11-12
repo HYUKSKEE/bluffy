@@ -1,0 +1,195 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ───────── 테마 토큰 (RGB 채널) ─────────  블랙 + 레드 + 블루 */
+:root {
+  --c-bg: 7 7 11;
+  --c-surface: 20 20 30;
+  --c-surface2: 32 30 46;
+  --c-ink: 255 255 255;
+  --c-muted: 160 160 186;
+  --c-red: 255 59 92;
+  --c-red-deep: 179 18 47;
+  --c-red-soft: 255 214 222;
+  --c-blue: 61 165 255;
+  --c-blue-deep: 27 95 209;
+  --c-blue-soft: 205 232 255;
+  --c-gold: 255 214 94;
+  --gutter: 16px;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    margin: 0;
+    background-color: rgb(var(--c-bg));
+    background-image: radial-gradient(120% 60% at 50% -10%, rgb(var(--c-red) / 0.16), transparent 60%),
+      radial-gradient(100% 50% at 100% 100%, rgb(var(--c-blue) / 0.14), transparent 60%);
+    background-attachment: fixed;
+    color: rgb(var(--c-ink));
+    font-family: 'Jua', system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif;
+    overflow-x: hidden;
+    letter-spacing: 0.01em;
+  }
+  button,
+  input {
+    font-family: inherit;
+  }
+  *:focus-visible {
+    outline: 3px solid rgb(var(--c-blue) / 0.9);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* 화면 컨테이너: 좌우 여백 16px, 가로 스크롤 없음 */
+  .page {
+    width: 100%;
+    max-width: 520px;
+    margin-inline: auto;
+    padding-inline: var(--gutter);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* 점토/젤리 패널 */
+  .jelly-panel {
+    background: linear-gradient(180deg, rgb(var(--c-surface2)) 0%, rgb(var(--c-surface)) 100%);
+    border-radius: 28px 28px 32px 22px; /* 살짝 뾰족하고 둥근 형태 */
+    box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.12), inset 0 -6px 14px rgb(0 0 0 / 0.35),
+      0 14px 30px rgb(0 0 0 / 0.5);
+  }
+
+  /* 눌리면 들어가는 3D 캔디 버튼 */
+  .candy {
+    --face: var(--c-red);
+    --deep: var(--c-red-deep);
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 52px;
+    padding: 12px 22px;
+    border: 0;
+    border-radius: 22px 22px 26px 18px;
+    color: #fff;
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+    touch-action: manipulation;
+    background: radial-gradient(120% 90% at 30% 10%, rgb(255 255 255 / 0.55), transparent 42%),
+      linear-gradient(180deg, rgb(var(--face)) 0%, rgb(var(--deep)) 135%);
+    box-shadow: 0 7px 0 rgb(var(--deep)), 0 14px 20px rgb(0 0 0 / 0.45), inset 0 2px 3px rgb(255 255 255 / 0.55),
+      inset 0 -4px 8px rgb(0 0 0 / 0.18);
+    text-shadow: 0 2px 0 rgb(0 0 0 / 0.25);
+    transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s;
+  }
+  .candy:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+  .candy:active:not(:disabled) {
+    transform: translateY(5px);
+    box-shadow: 0 2px 0 rgb(var(--deep)), 0 5px 9px rgb(0 0 0 / 0.45), inset 0 2px 3px rgb(255 255 255 / 0.45),
+      inset 0 -3px 6px rgb(0 0 0 / 0.2);
+  }
+  .candy:disabled {
+    cursor: not-allowed;
+    filter: grayscale(0.85) brightness(0.6);
+    box-shadow: 0 4px 0 rgb(40 40 50), inset 0 2px 3px rgb(255 255 255 / 0.15);
+  }
+  .candy-blue {
+    --face: var(--c-blue);
+    --deep: var(--c-blue-deep);
+  }
+  .candy-dark {
+    --face: 70 66 96;
+    --deep: 34 32 52;
+  }
+  .candy-gold {
+    --face: var(--c-gold);
+    --deep: 196 140 20;
+    color: #3a2600;
+    text-shadow: 0 1px 0 rgb(255 255 255 / 0.5);
+  }
+  .candy-sm {
+    min-height: 44px;
+    padding: 10px 16px;
+    font-size: 1rem;
+    border-radius: 18px 18px 22px 14px;
+  }
+
+  /* 입력창 */
+  .field {
+    width: 100%;
+    min-height: 54px;
+    padding: 12px 18px;
+    font-size: 1.1rem;
+    color: rgb(var(--c-ink));
+    background: rgb(var(--c-bg) / 0.7);
+    border: 2px solid rgb(var(--c-blue) / 0.35);
+    border-radius: 20px 20px 24px 16px;
+    box-shadow: inset 0 4px 10px rgb(0 0 0 / 0.55);
+  }
+  .field::placeholder {
+    color: rgb(var(--c-muted) / 0.7);
+  }
+  .field:focus {
+    outline: none;
+    border-color: rgb(var(--c-blue));
+  }
+
+  /* 파란 젤리 코인 */
+  .coin {
+    display: inline-block;
+    width: 1.15em;
+    height: 1.15em;
+    flex: none;
+    vertical-align: -0.2em;
+    border-radius: 50%;
+    background: radial-gradient(circle at 32% 26%, #fff 0 9%, rgb(255 255 255 / 0.0) 24%),
+      radial-gradient(circle at 50% 55%, rgb(var(--c-blue)) 0%, rgb(var(--c-blue-deep)) 78%);
+    box-shadow: inset 0 -3px 5px rgb(0 0 0 / 0.3), inset 0 2px 3px rgb(255 255 255 / 0.7), 0 2px 5px rgb(0 0 0 / 0.5);
+    border: 2px solid rgb(var(--c-blue-soft) / 0.8);
+  }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 999px 999px 999px 6px;
+    font-size: 0.8rem;
+    background: rgb(var(--c-blue) / 0.2);
+    color: rgb(var(--c-blue-soft));
+  }
+  .tag-red {
+    background: rgb(var(--c-red) / 0.22);
+    color: rgb(var(--c-red-soft));
+  }
+}
+
+@layer utilities {
+  .pb-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
