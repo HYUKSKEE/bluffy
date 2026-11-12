@@ -67,7 +67,7 @@ export function RulesBody() {
         <br />
         <span className="tag tag-red mr-1.5">B 모드</span>모든 상대의 카드 2장이 보여요. 내 카드만 몰라요!
       </li>
-      <li className="text-sm text-muted">승부(쇼다운) 때만 카드가 공개돼요. 칩은 가상이며 무료예요. 현금·경품과 무관해요.</li>
+      <li className="text-sm text-muted">한 판이 끝나면 그 판에 참여한 모두의 패가 공개돼요. 칩은 가상이며 무료예요. 현금·경품과 무관해요.</li>
     </ul>
   )
 }

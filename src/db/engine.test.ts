@@ -230,13 +230,13 @@ describe('베팅 검증 (서버)', () => {
     void sc
   })
 
-  it('다이하면 상대가 판돈을 가져가고 카드는 공개되지 않는다', async () => {
+  it('다이하면 상대가 판돈을 가져가고 패가 공개된다', async () => {
     const t = await setupMatch(db, 'B', 2)
     const { st, uid, seat } = await turn(t)
     await act(uid, st.hand.id, 'die')
     const r = await state(t)
     expect(r.hand.status).toBe('finished')
-    expect(r.hand.revealed).toBe(false)
+    expect(r.hand.revealed).toBe(true)
     expect(r.hand.result).toMatchObject({ reason: 'fold', pot: 2, winners: [{ seat: seat === 1 ? 2 : 1, amount: 2 }] })
     expect(r.seats.reduce((a: number, s: any) => a + s.chips, 0)).toBe(200)
     expect(r.match.next_hand_at).not.toBeNull()

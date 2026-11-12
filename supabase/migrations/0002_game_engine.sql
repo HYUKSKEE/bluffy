@@ -89,15 +89,15 @@ begin
   if v_remaining <= 1 or m.hand_no >= m.max_hands then
     perform card_game.finish_match(m.id);
   else
-    -- 결과 연출을 볼 시간(쇼다운 6초, 다이로 끝나면 2초) 뒤에 다음 판 시작 가능
+    -- 결과 연출을 볼 시간(쇼다운 6초, 다이로 끝나면 4초) 뒤에 다음 판 시작 가능
     update card_matches
-       set next_hand_at = now() + (case when p_revealed then interval '6 seconds' else interval '2 seconds' end)
+       set next_hand_at = now() + (case when p_reason = 'showdown' then interval '6 seconds' else interval '4 seconds' end)
      where id = m.id;
   end if;
   perform card_game.notify('card_match:' || m.id);
 end $$;
 
--- 다른 모두가 다이/이탈: 남은 한 명이 판돈 전부를 가져간다 (카드 공개 없음)
+-- 다른 모두가 다이/이탈: 남은 한 명이 판돈 전부를 가져간다 (판이 끝나면 패는 모두 공개된다)
 create function card_game.settle_fold(p_hand uuid, p_winner_seat int)
 returns void language plpgsql security definer set search_path = public as $$
 declare
@@ -105,7 +105,7 @@ declare
 begin
   select * into h from card_hands where id = p_hand;
   update card_match_players set chips = chips + h.pot where match_id = h.match_id and seat = p_winner_seat;
-  perform card_game.close_hand(p_hand, 'fold', false,
+  perform card_game.close_hand(p_hand, 'fold', true,
     jsonb_build_array(jsonb_build_object('seat', p_winner_seat, 'amount', h.pot)), 0);
 end $$;
 

@@ -99,30 +99,27 @@ describe('공개 시점', () => {
       }
     })
 
-    it(`${mode} 모드: 다이로 끝나면 카드를 공개하지 않는다`, async () => {
+    it(`${mode} 모드: 다이로 끝나도 판이 끝나면 모든 참여자의 패가 공개된다`, async () => {
       const t = await setupMatch(db, mode, 3)
       const st = await state(t)
       const handId = st.hand.id
+      const midView = await view(t, 1) // 판이 진행 중일 때는 아직 비공개
+      expect(midView.revealed).toBe(false)
       for (let i = 0; i < 2; i++) {
         const { uid } = await turnUser(t)
         await rpc(db, uid, 'act', handId, 'die', 0)
       }
       expect((await state(t)).hand.status).toBe('finished')
       const tr = await truth(handId)
-      const v = await view(t, 1, 1)
-      expect(v.revealed).toBe(false)
-      if (mode === 'B') {
-        expect(seatOf(v, 1).cards).toEqual([null, null])
-      } else {
-        for (const s of [2, 3]) {
-          const hiddenIdx = tr[s].open_idx === 1 ? 1 : 0
-          expect(seatOf(v, s).cards[hiddenIdx]).toBeNull()
-        }
+      for (let me = 1; me <= 3; me++) {
+        const v = await view(t, me, 1)
+        expect(v.revealed).toBe(true)
+        for (let s = 1; s <= 3; s++) expect(seatOf(v, s).cards).toEqual(tr[s].cards)
       }
     })
   }
 
-  it('A 모드: 쇼다운이어도 다이한 사람의 비공개 카드는 공개되지 않는다', async () => {
+  it('A 모드: 쇼다운이 되면 다이한 사람의 패도 함께 공개된다', async () => {
     const t = await setupMatch(db, 'A', 3)
     const st = await state(t)
     const { uid: first, seat: s1 } = await turnUser(t)
@@ -130,15 +127,11 @@ describe('공개 시점', () => {
     const { uid: second, seat: s2 } = await turnUser(t)
     await rpc(db, second, 'act', st.hand.id, 'die', 0)
     const { uid: third } = await turnUser(t)
-    await rpc(db, third, 'act', st.hand.id, 'call', 0) // 쇼다운 (s1 과 survivor 생존)
+    await rpc(db, third, 'act', st.hand.id, 'call', 0)
     expect((await state(t)).hand.revealed).toBe(true)
     const tr = await truth(st.hand.id)
     const v = await view(t, s1)
-    const hiddenIdx = tr[s2].open_idx === 1 ? 1 : 0
-    expect(seatOf(v, s2).cards[hiddenIdx]).toBeNull() // 다이한 s2 의 비공개 카드는 그대로 숨김
-    expect(seatOf(v, s2).cards.filter((c: unknown) => c !== null)).toHaveLength(1)
-    const survivor = [1, 2, 3].find((x) => x !== s1 && x !== s2)!
-    expect(seatOf(v, survivor).cards).toEqual(tr[survivor].cards) // 생존자는 전부 공개
+    expect(seatOf(v, s2).cards).toEqual(tr[s2].cards)
   })
 
   it('참가자가 아니면 조회 불가', async () => {

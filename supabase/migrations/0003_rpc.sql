@@ -255,8 +255,8 @@ begin
   if not found then return null; end if;
 
   for hs in select * from card_hand_seats where hand_id = h.id order by seat loop
-    if h.revealed and hs.in_hand and not hs.folded then
-      v_cards := hs.cards;                                              -- 쇼다운 생존자: 모두에게 공개
+    if h.revealed and hs.in_hand then
+      v_cards := hs.cards;                                              -- 판이 끝나면 그 판에 참여한 모든 좌석의 패를 공개
     elsif hs.seat = v_my_seat then
       v_cards := case when r.mode = 'A' then hs.cards else array[null, null]::int[] end;
     elsif r.mode = 'A' then
