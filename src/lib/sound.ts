@@ -158,9 +158,11 @@ export function playSfx(name: Sfx) {
     case 'emote_sad': // 슬퍼 : 느리게 내려가는 단조
       ;[440, 392, 349, 330].forEach((f, i) => tone(c, { f, t: i * 0.24, d: 0.42, type: 'sine', g: 0.17 }))
       break
-    case 'emote_sg': // 스겜! : 게임 시작 효과음 (뿅뿅 뿌-웅)
-      ;[659, 659, 784, 988].forEach((f, i) => tone(c, { f, t: i * 0.1, d: 0.1, type: 'square', g: 0.07 }))
-      tone(c, { f: 1319, t: 0.42, d: 0.35, type: 'triangle', g: 0.14, slide: 1.5 })
+    case 'emote_sg': // 스겜! : 화난 으르렁 "그르르 쾅!"
+      tone(c, { f: 110, d: 0.45, type: 'sawtooth', g: 0.14, slide: 1.6 })
+      tone(c, { f: 117, d: 0.45, type: 'square', g: 0.06, slide: 1.6 })
+      noise(c, { t: 0.4, d: 0.18, freq: 400, g: 0.35 })
+      tone(c, { f: 220, t: 0.4, d: 0.25, type: 'square', g: 0.12, slide: 0.5 })
       break
     case 'msg': // 채팅 알림
       tone(c, { f: 1040, d: 0.07, type: 'sine', g: 0.12 })
