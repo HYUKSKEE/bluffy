@@ -74,7 +74,6 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
           <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
         </div>
       </header>
-      <ChatPanel matchId={matchId} />
       <RulesModal forceOpen={rules} onClose={() => setRules(false)} />
 
       <PileBadge pile={state.pile} />
@@ -134,6 +133,8 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
           return <li key={a.id} className="animate-pop text-red-soft">{nameOfSeat(a.seat)}: {what}{a.auto ? ' (자동)' : ''}</li>
         })}
       </ul>
+
+      <ChatPanel matchId={matchId} />
 
       {m.status === 'waiting' && <p className="rounded-2xl bg-surface/80 py-4 text-center text-muted">아직 시작 전이에요. 방장이 시작하면 볼 수 있어요.</p>}
       {over && (

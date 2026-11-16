@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { api, friendly, type MatchState } from '../lib/api'
 import { MAX_PLAYERS, MIN_PLAYERS, START_CHIPS } from '../game/rules'
 import { Chips, CopyButton } from '../components/ui'
 
 /** 대기 테이블: 2~5명이 모일 때까지 기다리고, 방장이 마음대로 시작한다 (5명이면 자동 시작). */
-export default function TableWaiting({ state, myPlayerId, onLeave }: { state: MatchState; myPlayerId: string; onLeave: () => void }) {
+export default function TableWaiting({ state, myPlayerId, onLeave, children }: { state: MatchState; myPlayerId: string; onLeave: () => void; children?: ReactNode }) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const m = state.match
@@ -79,6 +79,7 @@ export default function TableWaiting({ state, myPlayerId, onLeave }: { state: Ma
         )}
         <CopyButton text={link} label="친구 더 부르기 (링크 복사)" className="w-full" />
       </section>
+      {children}
     </main>
   )
 }

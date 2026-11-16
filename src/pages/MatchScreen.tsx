@@ -67,10 +67,9 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
   // ───── 대기 테이블 ─────
   if (m.status === 'waiting') {
     return (
-      <>
-        <TableWaiting state={state} myPlayerId={myPlayerId} onLeave={() => void leave()} />
+      <TableWaiting state={state} myPlayerId={myPlayerId} onLeave={() => void leave()}>
         <ChatPanel matchId={matchId} />
-      </>
+      </TableWaiting>
     )
   }
 
@@ -152,7 +151,7 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
           <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
         </div>
       </header>
-      <ChatPanel matchId={matchId} bottom={196} />
+
       <RulesModal forceOpen={rules} onClose={() => setRules(false)} />
 
       <PileBadge pile={state.pile} />
@@ -217,6 +216,8 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
         ))}
         {state.actions.length === 0 && betting && <li>{h!.turn_seat === mySeat ? '내가 선이에요! 먼저 행동하세요.' : `${nameOfSeat(h!.turn_seat ?? 0)}님이 선이에요.`}</li>}
       </ul>
+
+      <ChatPanel matchId={matchId} />
 
       {/* 내 정보 */}
       <div className={`jelly-panel flex items-center justify-between px-4 py-2.5 ${myTurn ? 'ring-4 ring-blue' : ''}`}>
