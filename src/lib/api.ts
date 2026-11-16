@@ -1,7 +1,12 @@
 import { ensureAuth, supabase } from './supabase'
 
 // ───────────── 타입 ─────────────
-export type Mode = 'A' | 'B'
+export type Mode = 'A' | 'B' | 'C'
+
+/** 모드 이름 (태그/제목용) */
+export const modeName = (m: Mode): string => (m === 'A' ? 'A 모드 · 반공개' : m === 'B' ? 'B 모드 · 눈치' : 'C 모드 · 블라인드')
+/** A 모드가 아니면 빨간 태그 */
+export const modeTone = (m: Mode): string => (m === 'A' ? '' : 'tag-red')
 
 export interface PlayerSelf {
   id: string
@@ -246,6 +251,8 @@ async function rpc<T>(fn: string, args?: Record<string, unknown>): Promise<T> {
 export const api = {
   createRoom: (title: string, mode: Mode, hard = false) =>
     rpc<{ room_id: string; admin_token: string }>('card_create_room_ex', { p_title: title, p_mode: mode, p_hard: hard }),
+  setRoomBlind: (roomId: string, token: string, on: boolean) =>
+    rpc<{ blind: boolean }>('card_set_room_blind', { p_room_id: roomId, p_admin_token: token, p_on: on }),
   setRoomSeotda: (roomId: string, token: string, on: boolean) =>
     rpc<{ seotda: boolean }>('card_set_room_seotda', { p_room_id: roomId, p_admin_token: token, p_on: on }),
   listOpenRooms: () => rpc<OpenRoom[]>('card_list_open_rooms'),

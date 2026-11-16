@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, type OpenRoom } from '../lib/api'
+import { api, modeTone, type OpenRoom } from '../lib/api'
 import { CreditsModal, Logo, RulesBody, RulesModal } from '../components/ui'
 import { SoundButton } from '../components/SoundButton'
 
@@ -62,7 +62,7 @@ export default function Home() {
                   <span className="min-w-0">
                     <span className="block truncate">{r.title}</span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted">
-                      <span className={`tag ${r.mode === 'B' ? 'tag-red' : ''}`}>{r.mode} 모드</span>
+                      <span className={`tag ${modeTone(r.mode)}`}>{r.mode} 모드</span>
                       {r.hard && <span className="tag tag-red">고난이도</span>}
                       {r.seotda && <span className="tag tag-red">섯다</span>}
                       {r.participants}명 · 대결 {r.active_matches}건{r.waiting_tables > 0 ? ` · 대기 ${r.waiting_tables}` : ''}

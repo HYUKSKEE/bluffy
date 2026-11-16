@@ -21,7 +21,7 @@ export default function Practice({ onExit }: { onExit?: () => void } = {}) {
   // 주소로 설정을 미리 정할 수 있다: /practice?mode=B&bots=3&hard=1&start=1 (start=1 이면 바로 시작)
   const q = new URLSearchParams(window.location.search)
   const [opts, setOpts] = useState<PracticeOpts>(() => ({
-    mode: q.get('mode') === 'B' ? 'B' : 'A',
+    mode: q.get('mode') === 'B' ? 'B' : q.get('mode') === 'C' ? 'C' : 'A',
     bots: Math.min(4, Math.max(1, Number(q.get('bots')) || 2)),
     hard: q.get('hard') === '1',
     rules: q.get('rules') === 'seotda' ? 'seotda' : 'standard',
@@ -46,6 +46,7 @@ function Setup({ opts, setOpts, onStart, onExit }: { opts: PracticeOpts; setOpts
   const modes: { id: PracticeMode; name: string; desc: string }[] = [
     { id: 'A', name: 'A 모드 · 반공개', desc: '내 카드 2장 + 상대의 공개 카드 1장이 보여요.' },
     { id: 'B', name: 'B 모드 · 눈치', desc: '상대의 카드 2장이 보이고, 내 카드는 몰라요.' },
+    { id: 'C', name: 'C 모드 · 블라인드', desc: '판이 끝나기 전에는 아무 카드도 안 보여요. 베팅만 믿고 가요!' },
   ]
   return (
     <main className="page py-6">
@@ -176,6 +177,7 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
     if (hiddenFromMe(seat)) return [{ value: null }, { value: null }]
     return [0, 1].map((i) => {
       if (revealed) return { value: c[i] }
+      if (mode === 'C') return { value: null } // 블라인드: 판이 끝나기 전에는 아무것도 안 보인다
       if (mode === 'A') {
         if (mine) return { value: c[i], tag: g.openIdx[seat] === i + 1 ? '공개' : null }
         return g.openIdx[seat] === i + 1 ? { value: c[i], tag: '공개' } : { value: null }
@@ -233,7 +235,7 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
         <ExitLink onExit={onExit} className="candy candy-dark candy-sm !min-h-[40px] shrink-0 whitespace-nowrap !px-3 !py-2 text-sm">나가기</ExitLink>
         <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-center text-xs text-muted">
           <span className="tag">연습</span>
-          <span className={`tag ml-1 ${mode === 'B' ? 'tag-red' : ''}`}>{mode} 모드</span>
+          <span className={`tag ml-1 ${mode !== 'A' ? 'tag-red' : ''}`}>{mode} 모드</span>
           {seotda && <SeotdaChartButton className="ml-1" />}
           <span className="ml-2">{Math.max(1, g.handNo)} / {MAX_HANDS} 판</span>
         </div>
@@ -267,6 +269,9 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
               <span className="ml-2 text-xs opacity-90">{banner.sub}</span>
             </div>
           </div>
+        )}
+        {mode === 'C' && betting && me.inHand && (
+          <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-xs text-muted">아무 카드도 보이지 않아요 — 베팅만 보고 승부해요!</p>
         )}
         {mode === 'B' && betting && me.inHand && (
           <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-xs text-muted">내 카드는 이마에 붙어 있어요 — 나는 몰라요!</p>

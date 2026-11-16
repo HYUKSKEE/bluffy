@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { api, friendly, type MatchState } from '../lib/api'
+import { api, friendly, modeName, modeTone, type MatchState } from '../lib/api'
 import { MAX_PLAYERS, MIN_PLAYERS, START_CHIPS } from '../game/rules'
 import { Chips, CopyButton } from '../components/ui'
 import { SoundButton } from '../components/SoundButton'
@@ -31,7 +31,7 @@ export default function TableWaiting({ state, myPlayerId, onLeave, children }: {
       <header className="flex items-center justify-between">
         <button className="candy candy-dark candy-sm" onClick={onLeave}>자리 나가기</button>
         <div className="flex items-center gap-2">
-          <span className={`tag ${m.mode === 'B' ? 'tag-red' : ''}`}>{m.mode === 'A' ? 'A 모드 · 반공개' : 'B 모드 · 눈치'}</span>
+          <span className={`tag ${modeTone(m.mode)}`}>{modeName(m.mode)}</span>
           {m.seotda && <SeotdaChartButton />}
           <SoundButton />
         </div>

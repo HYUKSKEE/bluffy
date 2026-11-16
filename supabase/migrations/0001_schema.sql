@@ -140,6 +140,13 @@ create table public.card_room_seotda (
   room_id uuid primary key references public.card_rooms(id) on delete cascade
 );
 
+-- ───────────── C 모드(블라인드) ─────────────
+-- 행이 있으면 그 방은 C 모드: 판이 끝나기 전에는 아무도 어떤 카드도 보지 못한다 (내 카드도, 상대 카드도).
+-- (card_rooms.mode 는 A/B 만 허용하므로 별도 테이블로 둔다. 클라이언트에는 mode = 'C' 로 보인다.)
+create table public.card_room_blind (
+  room_id uuid primary key references public.card_rooms(id) on delete cascade
+);
+
 -- ───────────── 공개 방 목록 ─────────────
 -- 방 목록(홈 화면)에 보이도록 공개한 방. 행이 있으면 공개, 없으면 링크를 아는 사람만 들어올 수 있는 비공개.
 create table public.card_public_rooms (
@@ -175,6 +182,7 @@ alter table public.card_match_decks   enable row level security;
 alter table public.card_chat_messages  enable row level security;
 alter table public.card_public_rooms   enable row level security;
 alter table public.card_room_seotda    enable row level security;
+alter table public.card_room_blind     enable row level security;
 
 -- Supabase 는 새 테이블에 anon/authenticated 권한을 기본 부여한다 → 이 마이그레이션이 만든 card_ 테이블만 회수.
 -- (기존 객체(다른 게임의 테이블/함수/시퀀스)는 절대 건드리지 않는다. identity 시퀀스는 테이블 권한을 따른다.)
@@ -182,10 +190,10 @@ alter table public.card_room_seotda    enable row level security;
 revoke all on
   public.card_rooms, public.card_players, public.card_matches, public.card_match_players,
   public.card_hands, public.card_hand_seats, public.card_actions,
-  public.card_room_options, public.card_match_decks, public.card_chat_messages, public.card_public_rooms, public.card_room_seotda
+  public.card_room_options, public.card_match_decks, public.card_chat_messages, public.card_public_rooms, public.card_room_seotda, public.card_room_blind
 from public;
 revoke all on
   public.card_rooms, public.card_players, public.card_matches, public.card_match_players,
   public.card_hands, public.card_hand_seats, public.card_actions,
-  public.card_room_options, public.card_match_decks, public.card_chat_messages, public.card_public_rooms, public.card_room_seotda
+  public.card_room_options, public.card_match_decks, public.card_chat_messages, public.card_public_rooms, public.card_room_seotda, public.card_room_blind
 from anon, authenticated;

@@ -29,6 +29,22 @@ begin
   return v_res;
 end $$;
 
+-- C 모드(블라인드) 켜기/끄기 (관리 토큰이 있는 방 생성자만, 아직 대결이 한 번도 만들어지지 않은 방에서만)
+create function public.card_set_room_blind(p_room_id uuid, p_admin_token text, p_on boolean)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
+  if not public.card_verify_admin(p_room_id, p_admin_token) then raise exception 'FORBIDDEN'; end if;
+  if exists (select 1 from card_matches where room_id = p_room_id) then raise exception 'ROOM_IN_USE'; end if;
+  if coalesce(p_on, false) then
+    insert into card_room_blind (room_id) values (p_room_id) on conflict do nothing;
+  else
+    delete from card_room_blind where room_id = p_room_id;
+  end if;
+  perform card_game.notify('card_room:' || p_room_id);
+  return jsonb_build_object('blind', coalesce(p_on, false));
+end $$;
+
 -- 섯다 룰 켜기/끄기 (관리 토큰이 있는 방 생성자만, 아직 대결이 한 번도 만들어지지 않은 방에서만)
 create function public.card_set_room_seotda(p_room_id uuid, p_admin_token text, p_on boolean)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
@@ -71,7 +87,7 @@ begin
              'participants', t.participants, 'active_matches', t.active_matches, 'waiting_tables', t.waiting_tables)
            order by t.waiting_tables desc, t.active_matches desc, t.created_at desc)
       from (
-        select r.id, r.title, r.mode, r.created_at,
+        select r.id, r.title, card_game.room_mode(r.id) as mode, r.created_at,
                coalesce((select o.hard from card_room_options o where o.room_id = r.id), false) as hard,
                exists (select 1 from card_room_seotda z where z.room_id = r.id) as seotda,
                (select count(*) from card_players p where p.room_id = r.id) as participants,
@@ -97,7 +113,7 @@ begin
   select * into r from card_rooms where id = p_room_id;
   if not found then raise exception 'ROOM_NOT_FOUND'; end if;
   return jsonb_build_object(
-    'room', jsonb_build_object('id', r.id, 'title', r.title, 'mode', r.mode, 'status', r.status,
+    'room', jsonb_build_object('id', r.id, 'title', r.title, 'mode', card_game.room_mode(r.id), 'status', r.status,
                                'created_at', r.created_at, 'closed_at', r.closed_at,
                                'hard', coalesce((select o.hard from card_room_options o where o.room_id = r.id), false),
                                'public', exists (select 1 from card_public_rooms pr where pr.room_id = r.id),
@@ -352,6 +368,7 @@ declare
   hs record;
   v_cards int[];
   v_out boolean;
+  v_mode text;
   v_seats jsonb := '[]'::jsonb;
 begin
   if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
@@ -362,6 +379,7 @@ begin
   if v_my_seat is null then raise exception 'NOT_A_PLAYER'; end if;
 
   select * into r from card_rooms where id = m.room_id;
+  v_mode := card_game.room_mode(r.id);
   select * into h from card_hands
    where match_id = p_match_id and (p_hand_no is null or hand_no = p_hand_no)
    order by hand_no desc limit 1;
@@ -375,7 +393,7 @@ begin
     if hs.seat = v_my_seat then
       -- 내 카드: 판이 끝나면 공개, 진행 중에는 모드 규칙 (A: 보임, B: 안 보임)
       v_cards := case when h.revealed and hs.in_hand then hs.cards
-                      when r.mode = 'A' then hs.cards
+                      when v_mode = 'A' then hs.cards
                       else array[null, null]::int[] end;
     elsif v_out then
       v_cards := array[null, null]::int[];                              -- 다이한 사람: 상대 패는 끝까지 안 보인다
@@ -383,16 +401,18 @@ begin
       v_cards := array[null, null]::int[];                              -- 다이한 사람의 패는 상대에게 (진행 중에도, 끝난 뒤에도) 안 보인다
     elsif h.revealed and hs.in_hand then
       v_cards := hs.cards;                                              -- 판이 끝나면 끝까지 남은 사람들의 패를 서로 공개
-    elsif r.mode = 'A' then
+    elsif v_mode = 'C' then
+      v_cards := array[null, null]::int[];                              -- C 모드(블라인드): 판이 끝나기 전에는 아무 카드도 안 보인다
+    elsif v_mode = 'A' then
       v_cards := array[case when hs.open_idx = 1 then hs.cards[1] end, case when hs.open_idx = 2 then hs.cards[2] end];
     else
       v_cards := hs.cards;
     end if;
     v_seats := v_seats || jsonb_build_array(jsonb_build_object(
-      'seat', hs.seat, 'cards', to_jsonb(v_cards), 'open', case when r.mode = 'A' then hs.open_idx end));
+      'seat', hs.seat, 'cards', to_jsonb(v_cards), 'open', case when v_mode = 'A' then hs.open_idx end));
   end loop;
 
-  return jsonb_build_object('hand_id', h.id, 'hand_no', h.hand_no, 'mode', r.mode,
+  return jsonb_build_object('hand_id', h.id, 'hand_no', h.hand_no, 'mode', v_mode,
                             'my_seat', v_my_seat, 'revealed', h.revealed, 'seats', v_seats);
 end $$;
 
@@ -447,7 +467,7 @@ begin
     'server_now', now(),
     'my_seat', v_my_seat,
     'match', jsonb_build_object(
-      'id', m.id, 'room_id', m.room_id, 'room_status', r.status, 'mode', r.mode, 'status', m.status,
+      'id', m.id, 'room_id', m.room_id, 'room_status', r.status, 'mode', card_game.room_mode(m.room_id), 'status', m.status,
       'hand_no', m.hand_no, 'max_hands', m.max_hands, 'start_chips', m.start_chips, 'carry', m.carry,
       'host_player_id', m.host_player_id, 'end_reason', m.end_reason, 'next_hand_at', m.next_hand_at,
       'seotda', exists (select 1 from card_room_seotda z where z.room_id = m.room_id)),
@@ -728,6 +748,7 @@ revoke execute on function
   public.card_create_room_ex(text, text, boolean),
   public.card_set_room_public(uuid, text, boolean),
   public.card_set_room_seotda(uuid, text, boolean),
+  public.card_set_room_blind(uuid, text, boolean),
   public.card_list_open_rooms(),
   public.card_rename_player(uuid, text),
   public.card_send_emote(uuid, text),
@@ -754,6 +775,7 @@ grant execute on function
   public.card_create_room_ex(text, text, boolean),
   public.card_set_room_public(uuid, text, boolean),
   public.card_set_room_seotda(uuid, text, boolean),
+  public.card_set_room_blind(uuid, text, boolean),
   public.card_list_open_rooms(),
   public.card_send_emote(uuid, text),
   public.card_rename_player(uuid, text),

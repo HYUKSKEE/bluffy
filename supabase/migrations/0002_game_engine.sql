@@ -26,6 +26,13 @@ language sql immutable as $$
   select case when c[1] = c[2] then array[2, c[1]] else array[1, c[1] + c[2]] end
 $$;
 
+-- 방의 보이기 방식: 'A'(반공개) / 'B'(눈치) / 'C'(블라인드: card_room_blind 에 행이 있으면)
+create function card_game.room_mode(p_room uuid) returns text
+language sql stable security definer set search_path = public as $$
+  select case when exists (select 1 from card_room_blind b where b.room_id = p_room) then 'C'
+              else (select r.mode from card_rooms r where r.id = p_room) end
+$$;
+
 -- 섯다 족보 점수 (높을수록 강함, 같으면 무승부). 카드 id 1~20, 월 = ceil(id / 2).
 --   1월 1=광 2=띠 / 2월 3=열끗 4=띠 / 3월 5=광 6=띠 / 4월 7=열끗 8=띠 / 5월 9,10 / 6월 11,12 / 7월 13=열끗 14=띠
 --   8월 15=광 16=열끗 / 9월 17=열끗 18=띠 / 10월 19=열끗 20=띠

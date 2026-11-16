@@ -7,6 +7,7 @@ import { SoundButton } from '../components/SoundButton'
 const MODES: { id: Mode; name: string; tagline: string; desc: string; tone: 'red' | 'blue' }[] = [
   { id: 'A', name: 'A 모드 · 반공개', tagline: '정보는 적당히, 눈치는 팽팽하게', desc: '카드 2장 중 1장은 공개, 1장은 비공개. 나는 내 카드 2장과 각 상대의 공개 카드 1장을 봐요.', tone: 'blue' },
   { id: 'B', name: 'B 모드 · 눈치', tagline: '내 카드는 이마에! 상대 표정을 읽어라', desc: '모든 상대의 카드 2장이 보이고, 내 카드는 보이지 않아요. 상대들의 베팅이 유일한 힌트!', tone: 'red' },
+  { id: 'C', name: 'C 모드 · 블라인드', tagline: '아무것도 안 보여요! 베팅만 믿고 가라', desc: '판이 끝나기 전에는 내 카드도, 상대 카드도 아무것도 보이지 않아요. 상대의 베팅과 표정(?)만이 유일한 단서!', tone: 'red' },
 ]
 
 export default function Create() {
@@ -27,8 +28,9 @@ export default function Create() {
     setBusy(true)
     setErr(null)
     try {
-      const r = await api.createRoom(title.trim(), mode, hard)
+      const r = await api.createRoom(title.trim(), mode === 'C' ? 'B' : mode, hard) // C 모드는 방을 만든 뒤 별도로 켠다
       saveAdminToken(r.room_id, r.admin_token)
+      if (mode === 'C') await api.setRoomBlind(r.room_id, r.admin_token, true).catch((e3) => setWarn(`C 모드를 켜지 못했어요(B 모드로 진행돼요): ${friendly(e3)}`))
       if (isPublic) await api.setRoomPublic(r.room_id, r.admin_token, true).catch(() => undefined) // 실패해도 방은 만들어진다(비공개)
       if (seotda) await api.setRoomSeotda(r.room_id, r.admin_token, true).catch((e3) => setWarn(`섯다 룰을 켜지 못했어요(일반 룰로 진행돼요): ${friendly(e3)}`))
       setMade({ roomId: r.room_id, token: r.admin_token })

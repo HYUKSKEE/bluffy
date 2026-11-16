@@ -43,7 +43,7 @@ const total = (g: PracticeGame) => {
 
 describe('연습 게임', () => {
   const combos: PracticeOpts[] = []
-  for (const mode of ['A', 'B'] as const) for (const bots of [1, 2, 3, 4]) for (const hard of [false, true]) for (const rules of ['standard', 'seotda'] as const) combos.push({ mode, bots, hard, rules })
+  for (const mode of ['A', 'B', 'C'] as const) for (const bots of [1, 2, 3, 4]) for (const hard of [false, true]) for (const rules of ['standard', 'seotda'] as const) combos.push({ mode, bots, hard, rules })
 
   it.each(combos)('끝까지 진행되고 칩 총량이 보존된다 (%o)', (opts) => {
     for (let seed = 1; seed <= 12; seed++) {

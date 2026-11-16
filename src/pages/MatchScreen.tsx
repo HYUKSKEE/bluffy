@@ -1,5 +1,5 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
-import { api, friendly, isConnectionError, type MatchState, type SeatInfo, type VisibleHand } from '../lib/api'
+import { api, friendly, isConnectionError, modeTone, type Mode, type MatchState, type SeatInfo, type VisibleHand } from '../lib/api'
 import { useMatch, useTicker } from '../lib/hooks'
 import { handName, legalFor, TURN_SECONDS } from '../game/rules'
 import { Chips, ErrorScreen, Modal, PileBadge, RulesModal, Spinner } from '../components/ui'
@@ -22,7 +22,7 @@ function describe(a: MatchState['actions'][number], name: string) {
 }
 
 /** 서버가 준 보이는 카드 → 3D 무대용 카드. 못 보는 카드는 value=null(뒷면). */
-export function toStageCards(v: VisibleHand | null, seat: number, mode: 'A' | 'B', mine: boolean): StageCard[] {
+export function toStageCards(v: VisibleHand | null, seat: number, mode: Mode, mine: boolean): StageCard[] {
   const row = v?.seats.find((s) => s.seat === seat)
   return [0, 1].map((i) => {
     const value = row?.cards[i] ?? null
@@ -157,7 +157,7 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
       <header className="flex items-center justify-between gap-2">
         <button className="candy candy-dark candy-sm !min-h-[40px] shrink-0 whitespace-nowrap !px-3 !py-2 text-sm" onClick={() => setLeaving(true)} disabled={over}>나가기</button>
         <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-center text-xs text-muted">
-          <span className={`tag ${m.mode === 'B' ? 'tag-red' : ''}`}>{m.mode} 모드</span>
+          <span className={`tag ${modeTone(m.mode)}`}>{m.mode} 모드</span>
           {m.seotda && <SeotdaChartButton />}
           <span className="ml-2">{Math.max(1, m.hand_no)} / {m.max_hands} 판 · {state.seats.filter((s) => !s.left).length}명</span>
         </div>
@@ -219,6 +219,9 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
         )}
         {m.mode === 'B' && betting && me.in_hand && (
           <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-xs text-muted">내 카드는 이마에 붙어 있어요 — 나는 몰라요!</p>
+        )}
+        {m.mode === 'C' && betting && me.in_hand && (
+          <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-xs text-muted">아무 카드도 보이지 않아요 — 베팅만 보고 승부해요!</p>
         )}
         {!me.in_hand && !over && (
           <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-xs text-muted">{me.chips === 0 ? '칩이 없어 탈락했어요. 남은 판을 구경해요.' : '이번 판은 쉬어요.'}</p>

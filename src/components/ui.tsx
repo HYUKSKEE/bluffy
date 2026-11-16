@@ -73,6 +73,8 @@ export function RulesBody() {
         <span className="tag mr-1.5">A 모드</span>내 카드 2장 + 각 상대의 공개 카드 1장이 보여요.
         <br />
         <span className="tag tag-red mr-1.5">B 모드</span>모든 상대의 카드 2장이 보여요. 내 카드만 몰라요!
+        <br />
+        <span className="tag tag-red mr-1.5">C 모드</span>판이 끝나기 전에는 아무 카드도 안 보여요(내 카드도, 상대 카드도). 베팅만 믿고 승부!
       </li>
       <li>
         <span className="tag tag-red mr-1.5">섯다</span>화투 20장(1~10월 × 2장)! 광땡 &gt; 땡(장땡이 최고) &gt; 알리·독사·구삥·장삥·장사·세륙 &gt; 끗(갑오 9끗 … 망통 0끗). 암행어사(4월+7월 열끗)는 18·13광땡을, 땡잡이(3월 광+7월 열끗)는 1~9땡을 이겨요. 섯다 방에서는 📖 섯다 족보 버튼으로 족보표를 볼 수 있어요.

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { api, friendly, isConnectionError, loadAdminToken, saveAdminToken, subscribeSignal, type RoomView } from '../lib/api'
+import { api, friendly, isConnectionError, loadAdminToken, modeName, saveAdminToken, subscribeSignal, type RoomView } from '../lib/api'
 import { ensureAuth } from '../lib/supabase'
 import { ErrorScreen, Logo, Modal, Spinner } from '../components/ui'
 import { SoundButton } from '../components/SoundButton'
@@ -83,7 +83,7 @@ export default function Admin() {
     <main className="page pb-10 pt-5">
       <header className="flex items-center justify-between"><Logo small /><div className="flex items-center gap-2"><span className="tag tag-red">관리</span><SoundButton /></div></header>
       <h1 className="mt-4 text-3xl">{view.room.title}</h1>
-      <p className="text-sm text-muted">{view.room.mode === 'A' ? 'A 모드 · 반공개' : 'B 모드 · 눈치'} · {closed ? '종료됨' : '진행 중'}</p>
+      <p className="text-sm text-muted">{modeName(view.room.mode)} · {closed ? '종료됨' : '진행 중'}</p>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <div className="jelly-panel p-4 text-center"><div className="text-4xl text-blue tabular-nums">{view.participants}</div><div className="text-sm text-muted">참가자</div></div>

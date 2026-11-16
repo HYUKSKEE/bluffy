@@ -64,7 +64,7 @@ begin
              'auto', a.auto, 'created_at', a.created_at) order by a.id), '[]'::jsonb)
       into v_actions from card_actions a where a.hand_id = h.id;
     select coalesce(jsonb_agg(jsonb_build_object('seat', hs.seat, 'cards', to_jsonb(hs.cards),
-                                                       'open', case when r.mode = 'A' then hs.open_idx end) order by hs.seat), '[]'::jsonb)
+                                                       'open', case when card_game.room_mode(r.id) = 'A' then hs.open_idx end) order by hs.seat), '[]'::jsonb)
       into v_cards from card_hand_seats hs where hs.hand_id = h.id and hs.in_hand;
   end if;
 
@@ -84,7 +84,7 @@ begin
     'server_now', now(),
     'my_seat', null,
     'match', jsonb_build_object(
-      'id', m.id, 'room_id', m.room_id, 'room_status', r.status, 'mode', r.mode, 'status', m.status,
+      'id', m.id, 'room_id', m.room_id, 'room_status', r.status, 'mode', card_game.room_mode(r.id), 'status', m.status,
       'hand_no', m.hand_no, 'max_hands', m.max_hands, 'start_chips', m.start_chips, 'carry', m.carry,
       'host_player_id', m.host_player_id, 'end_reason', m.end_reason, 'next_hand_at', m.next_hand_at,
       'seotda', exists (select 1 from card_room_seotda z where z.room_id = m.room_id)),
