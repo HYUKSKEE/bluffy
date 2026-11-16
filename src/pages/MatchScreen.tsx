@@ -217,8 +217,6 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
         {state.actions.length === 0 && betting && <li>{h!.turn_seat === mySeat ? '내가 선이에요! 먼저 행동하세요.' : `${nameOfSeat(h!.turn_seat ?? 0)}님이 선이에요.`}</li>}
       </ul>
 
-      <ChatPanel matchId={matchId} />
-
       {/* 내 정보 */}
       <div className={`jelly-panel flex items-center justify-between px-4 py-2.5 ${myTurn ? 'ring-4 ring-blue' : ''}`}>
         <div className="flex items-center gap-2">
@@ -229,6 +227,8 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
         </div>
         <Chips n={me.chips} className="text-xl" />
       </div>
+
+      <ChatPanel matchId={matchId} bottom={252} />
 
       {/* 하단 고정 행동 버튼 (엄지 영역) */}
       <div className="fixed inset-x-0 bottom-0 z-30 bg-gradient-to-t from-bg via-bg/95 to-transparent pt-6">

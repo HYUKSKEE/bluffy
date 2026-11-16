@@ -2,18 +2,26 @@ import { useEffect, useRef, useState } from 'react'
 import { EMOTES, emoteOf, friendly } from '../lib/api'
 import { useChat } from '../lib/hooks'
 
+const emoteInfo = (key: string) => EMOTES.find((x) => x.key === key)!
+const textOf = (body: string) => {
+  const k = emoteOf(body)
+  return k ? `${emoteInfo(k).emoji} ${emoteInfo(k).text}` : body
+}
+
 /**
- * 게임 화면 안에 항상 보이는 채팅 목록 + 입력창 (텍스트로만 표시 — HTML 은 해석하지 않는다).
- * 참가자 채널과 관전자 채널은 서버에서 분리되어 서로 보이지 않는다.
- * 접으면 한 줄(마지막 메시지)만 보인다.
+ * 게임 화면을 가리지 않는 채팅: 최근 대화 몇 줄만 작게 띄우고, 오른쪽 가장자리에
+ * 💬 버튼과 빠른 반응(이모지) 버튼을 세로로 둔다. 💬 를 누르면 전체 대화 + 입력창이 열린다.
+ * (텍스트로만 표시 — HTML 은 해석하지 않는다. 참가자/관전자 채널은 서버에서 분리된다.)
+ * bottom: 화면 하단의 고정 버튼과 겹치지 않도록 띄우는 높이(px).
  */
-export default function ChatPanel({ matchId }: { matchId: string }) {
-  const [open, setOpen] = useState(true)
+export default function ChatPanel({ matchId, bottom = 16 }: { matchId: string; bottom?: number }) {
+  const [open, setOpen] = useState(false)
   const { messages, channel, unread, send, sendEmote, emote } = useChat(matchId, open)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const list = useRef<HTMLUListElement>(null)
+  const emoteBusy = useRef(false)
 
   useEffect(() => {
     if (open && list.current) list.current.scrollTop = list.current.scrollHeight
@@ -35,27 +43,25 @@ export default function ChatPanel({ matchId }: { matchId: string }) {
     }
   }
 
-  const emoteBusy = useRef(false)
   const doEmote = async (key: (typeof EMOTES)[number]['key']) => {
     if (emoteBusy.current) return
     emoteBusy.current = true
-    setErr(null)
     try {
       await sendEmote(key)
-    } catch (e2) {
-      setErr(friendly(e2))
+    } catch {
+      /* 도배 방지 등 — 조용히 무시 (소리/표시가 안 나는 것으로 충분) */
     } finally {
       setTimeout(() => { emoteBusy.current = false }, 400)
     }
   }
-  const emoteInfo = (key: string) => EMOTES.find((x) => x.key === key)!
 
   const title = channel === 'spectate' ? '관전자 채팅' : '테이블 채팅'
   const hint = channel === 'spectate' ? '관전자끼리만 보여요 (참가자에게는 안 보여요)' : '이 테이블에 앉은 사람끼리만 보여요'
-  const last = messages[messages.length - 1]
+  const recent = messages.slice(-3)
 
   return (
-    <section className="jelly-panel my-2 p-3" aria-label={title}>
+    <>
+      {/* 이모지가 왔을 때 잠깐 뜨는 큰 표시 */}
       {emote && (
         <div className="pointer-events-none fixed inset-x-0 top-28 z-50 flex justify-center px-4" aria-live="polite">
           <div key={emote.id} className="animate-pop rounded-[32px_32px_36px_24px] bg-black/70 px-6 py-3 text-center shadow-2xl backdrop-blur-sm">
@@ -64,53 +70,77 @@ export default function ChatPanel({ matchId }: { matchId: string }) {
           </div>
         </div>
       )}
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <b className="font-normal">💬 {title}</b>
-          {unread > 0 && !open && <span className="ml-2 rounded-full bg-red px-1.5 text-xs">{unread > 9 ? '9+' : unread}</span>}
-          {open && <p className="truncate text-xs text-muted">{hint}</p>}
-        </div>
-        <button className="candy candy-dark candy-sm !min-h-[32px] !px-3 !py-1 text-xs" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-          {open ? '접기' : '펼치기'}
+
+      {/* 최근 대화 (작게, 클릭은 통과) */}
+      {recent.length > 0 && (
+        <ul className="pointer-events-none fixed left-3 right-[64px] z-20 space-y-0.5" style={{ bottom }} aria-label="최근 대화" aria-live="polite">
+          {recent.map((m) => (
+            <li key={m.id} className={m.mine ? 'text-right' : ''}>
+              <span className={`inline-block max-w-full break-words rounded-xl px-2 py-0.5 text-left text-[11px] leading-snug text-white backdrop-blur-sm ${m.mine ? 'bg-blue/60' : 'bg-black/55'}`}>
+                {!m.mine && <b className="mr-1 font-normal text-blue-soft">{m.nickname}</b>}
+                {textOf(m.body)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* 오른쪽 가장자리: 채팅 버튼 + 이모지 버튼 */}
+      <div className="fixed right-2 z-30 flex flex-col items-center gap-1" style={{ bottom }} role="group" aria-label="채팅과 빠른 반응">
+        {EMOTES.map((e) => (
+          <button
+            key={e.key}
+            type="button"
+            className="flex h-[42px] w-[54px] flex-col items-center justify-center rounded-2xl bg-black/55 leading-none text-white shadow-md backdrop-blur-sm active:scale-95"
+            onClick={() => void doEmote(e.key)}
+            aria-label={e.text}
+          >
+            <span className="text-base leading-none">{e.emoji}</span>
+            <span className="mt-0.5 whitespace-nowrap text-[9px] leading-none">{e.text}</span>
+          </button>
+        ))}
+        <button
+          type="button"
+          className="relative flex h-[42px] w-[54px] flex-col items-center justify-center rounded-2xl bg-blue leading-none text-white shadow-md active:scale-95"
+          onClick={() => setOpen(true)}
+          aria-label={`채팅 열기${unread > 0 ? ` (새 메시지 ${unread}개)` : ''}`}
+        >
+          <span className="text-base leading-none">💬</span>
+          <span className="mt-0.5 text-[9px] leading-none">채팅</span>
+          {unread > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-red px-1.5 text-[10px]">{unread > 9 ? '9+' : unread}</span>}
         </button>
       </div>
 
-      <div className="mt-2 grid grid-cols-5 gap-1.5" role="group" aria-label="빠른 반응">
-        {EMOTES.map((e) => (
-          <button key={e.key} type="button" className="candy candy-dark !min-h-[44px] !rounded-2xl !px-1 !py-1 text-xs leading-tight" onClick={() => void doEmote(e.key)} aria-label={e.text}>
-            <span className="block text-xl leading-none">{e.emoji}</span>
-            {e.text}
-          </button>
-        ))}
-      </div>
-
-      {!open && last && (
-        <p className="mt-1 truncate text-sm text-muted">
-          <b className="mr-1.5 font-normal text-blue-soft">{last.mine ? '나' : last.nickname}</b>
-          {emoteOf(last.body) ? `${emoteInfo(emoteOf(last.body)!).emoji} ${emoteInfo(emoteOf(last.body)!).text}` : last.body}
-        </p>
-      )}
-
+      {/* 전체 대화 + 입력 */}
       {open && (
-        <>
-          <ul ref={list} className="my-2 max-h-[7.5rem] min-h-[3.5rem] space-y-1 overflow-y-auto text-sm" aria-live="polite">
-            {messages.length === 0 && <li className="py-3 text-center text-muted">아직 대화가 없어요. 먼저 인사해 보세요!</li>}
-            {messages.map((m) => (
-              <li key={m.id} className={m.mine ? 'text-right' : ''}>
-                <span className={`inline-block max-w-[88%] break-words rounded-2xl px-3 py-1 text-left ${m.mine ? 'bg-blue/30' : 'bg-surface2'}`}>
-                  {!m.mine && <b className="mr-1.5 font-normal text-blue-soft">{m.nickname}</b>}
-                  {emoteOf(m.body) ? `${emoteInfo(emoteOf(m.body)!).emoji} ${emoteInfo(emoteOf(m.body)!).text}` : m.body}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {err && <p role="alert" className="mb-1 text-xs text-red-soft">{err}</p>}
-          <form onSubmit={submit} className="flex gap-2">
-            <input className="field !min-h-[40px] flex-1 !py-1.5 text-sm" maxLength={80} placeholder="메시지 (최대 80자)" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" aria-label="채팅 입력" />
-            <button className="candy candy-sm !min-h-[40px]" disabled={busy || text.trim().length === 0}>전송</button>
-          </form>
-        </>
+        <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3" role="dialog" aria-label={title}>
+          <div className="jelly-panel animate-pop mx-auto flex max-h-[55dvh] max-w-md flex-col p-3">
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <div>
+                <b className="text-lg font-normal">{title}</b>
+                <p className="text-xs text-muted">{hint}</p>
+              </div>
+              <button className="candy candy-dark candy-sm !min-h-[36px] !px-3" onClick={() => setOpen(false)} aria-label="채팅 닫기">닫기</button>
+            </div>
+            <ul ref={list} className="mb-2 min-h-[6rem] flex-1 space-y-1.5 overflow-y-auto text-sm" aria-live="polite">
+              {messages.length === 0 && <li className="py-4 text-center text-muted">아직 대화가 없어요. 먼저 인사해 보세요!</li>}
+              {messages.map((m) => (
+                <li key={m.id} className={m.mine ? 'text-right' : ''}>
+                  <span className={`inline-block max-w-[85%] break-words rounded-2xl px-3 py-1.5 text-left ${m.mine ? 'bg-blue/30' : 'bg-surface2'}`}>
+                    {!m.mine && <b className="mr-1.5 font-normal text-blue-soft">{m.nickname}</b>}
+                    {textOf(m.body)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {err && <p role="alert" className="mb-1 text-xs text-red-soft">{err}</p>}
+            <form onSubmit={submit} className="flex gap-2">
+              <input className="field !min-h-[44px] flex-1 !py-2 text-sm" maxLength={80} placeholder="메시지 (최대 80자)" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" aria-label="채팅 입력" autoFocus />
+              <button className="candy candy-sm !min-h-[44px]" disabled={busy || text.trim().length === 0}>전송</button>
+            </form>
+          </div>
+        </div>
       )}
-    </section>
+    </>
   )
 }
