@@ -43,7 +43,7 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
   }, [open])
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 pb-4 pt-10 sm:items-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-4 pt-10 sm:items-center" onClick={onClose}>
       <div
         ref={ref}
         tabIndex={-1}

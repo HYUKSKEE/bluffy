@@ -188,16 +188,16 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
         </Suspense>
 
         <div className="pointer-events-none absolute bottom-[38%] left-1/2 -translate-x-1/2">
-          <div className="animate-pop rounded-full bg-black/55 px-3 py-1 text-lg backdrop-blur-sm">
+          <div className="animate-pop rounded-full bg-black/40 px-2.5 py-0.5 text-sm">
             판돈 <Chips n={h?.pot ?? 0} />
           </div>
         </div>
 
         {banner && !over && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div key={h!.id + 'b'} className={`animate-pop rounded-[32px_32px_36px_24px] px-7 py-4 text-center shadow-2xl ${banner.tone === 'blue' ? 'bg-blue shadow-blue/40' : 'bg-red shadow-red/40'}`}>
-              <div className="text-4xl">{banner.text}</div>
-              {banner.sub && <div className="mt-1 text-sm opacity-90">{banner.sub}</div>}
+          <div className="pointer-events-none absolute inset-x-0 top-1 flex justify-center">
+            <div key={h!.id + 'b'} className={`animate-pop rounded-full px-4 py-1.5 text-center shadow-lg backdrop-blur-[2px] ${banner.tone === 'blue' ? 'bg-blue/60' : 'bg-red/60'}`}>
+              <span className="text-xl">{banner.text}</span>
+              {banner.sub && <span className="ml-2 text-xs opacity-90">{banner.sub}</span>}
             </div>
           </div>
         )}

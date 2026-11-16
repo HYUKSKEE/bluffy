@@ -107,13 +107,13 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
           />
         </Suspense>
         <div className="pointer-events-none absolute bottom-[8%] left-1/2 -translate-x-1/2">
-          <div className="rounded-full bg-black/55 px-3 py-1 text-lg backdrop-blur-sm">판돈 <Chips n={h?.pot ?? 0} /></div>
+          <div className="rounded-full bg-black/40 px-2.5 py-0.5 text-sm">판돈 <Chips n={h?.pot ?? 0} /></div>
         </div>
         {finishedHand && res && !over && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div key={h!.id + 'b'} className="animate-pop rounded-[32px_32px_36px_24px] bg-blue px-7 py-4 text-center shadow-2xl shadow-blue/40">
-              <div className="text-3xl">{res.winners.map((w) => nameOfSeat(w.seat)).join(', ')} 승!</div>
-              <div className="mt-1 text-sm opacity-90">{res.reason === 'fold' ? '모두 다이' : '쇼다운'} · 판돈 {res.pot}</div>
+          <div className="pointer-events-none absolute inset-x-0 top-1 flex justify-center">
+            <div key={h!.id + 'b'} className="animate-pop rounded-full bg-blue/60 px-4 py-1.5 text-center shadow-lg backdrop-blur-[2px]">
+              <span className="text-lg">{res.winners.map((w) => nameOfSeat(w.seat)).join(', ')} 승!</span>
+              <span className="ml-2 text-xs opacity-90">{res.reason === 'fold' ? '모두 다이' : '쇼다운'} · 판돈 {res.pot}</span>
             </div>
           </div>
         )}

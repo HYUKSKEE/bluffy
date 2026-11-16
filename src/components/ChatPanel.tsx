@@ -63,10 +63,10 @@ export default function ChatPanel({ matchId, bottom = 16 }: { matchId: string; b
     <>
       {/* 이모지가 왔을 때 잠깐 뜨는 큰 표시 */}
       {emote && (
-        <div className="pointer-events-none fixed inset-x-0 top-28 z-50 flex justify-center px-4" aria-live="polite">
-          <div key={emote.id} className="animate-pop rounded-[32px_32px_36px_24px] bg-black/70 px-6 py-3 text-center shadow-2xl backdrop-blur-sm">
-            <div className="animate-bounceY text-6xl">{emoteInfo(emote.key).emoji}</div>
-            <div className="mt-1 text-lg">{emote.mine ? '나' : emote.nickname}: {emoteInfo(emote.key).text}</div>
+        <div className="pointer-events-none fixed inset-x-0 top-16 z-50 flex justify-center px-4" aria-live="polite">
+          <div key={emote.id} className="animate-pop flex items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 shadow-lg">
+            <span className="animate-bounceY text-3xl leading-none">{emoteInfo(emote.key).emoji}</span>
+            <span className="text-sm">{emote.mine ? '나' : emote.nickname}: {emoteInfo(emote.key).text}</span>
           </div>
         </div>
       )}
