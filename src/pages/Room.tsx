@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, friendly, GameError, isConnectionError, type RankRow } from '../lib/api'
 import { ensureAuth } from '../lib/supabase'
 import { useRoom, useTables } from '../lib/hooks'
-import { Chips, CopyButton, ErrorScreen, Logo, RulesModal, Spinner } from '../components/ui'
+import { Chips, CopyButton, ErrorScreen, Logo, Modal, RulesModal, Spinner } from '../components/ui'
 import MatchScreen from './MatchScreen'
 import SpectateScreen from './SpectateScreen'
 
@@ -43,6 +43,9 @@ export default function Room() {
   const [rules, setRules] = useState(false)
   const [inMatch, setInMatch] = useState<string | null>(null)
   const [watching, setWatching] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState(false)
+  const [newNick, setNewNick] = useState('')
+  const [renameMsg, setRenameMsg] = useState<string | null>(null)
   const tables = useTables(id, Boolean(player) && !inMatch && !watching)
 
   useEffect(() => { ensureAuth().catch(() => setAuthFail(true)) }, [])
@@ -113,12 +116,37 @@ export default function Room() {
       else setMsg(friendly(err))
     } finally { setBusy(false); void refresh() }
   }
+  const rename = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    setRenameMsg(null)
+    try {
+      const p = await api.renamePlayer(id, newNick.trim())
+      try { localStorage.setItem(NICK_KEY, p.nickname) } catch { /* noop */ }
+      setPlayer(p)
+      setRenaming(false)
+      void refresh()
+    } catch (err) {
+      setRenameMsg(friendly(err))
+    } finally { setBusy(false) }
+  }
   const me = view.ranking.find((r) => r.id === player.id)
   const link = `${window.location.origin}/r/${id}`
 
   return (
     <main className="page pb-10 pt-5">
       <RulesModal forceOpen={rules} onClose={() => setRules(false)} />
+      <Modal open={renaming} onClose={() => setRenaming(false)} title="닉네임 변경">
+        <form onSubmit={rename}>
+          <input className="field mb-3" maxLength={12} value={newNick} onChange={(e) => setNewNick(e.target.value)} placeholder="최대 12자" autoFocus aria-label="새 닉네임" />
+          {renameMsg && <p role="alert" className="mb-3 text-red-soft">{renameMsg}</p>}
+          <p className="mb-4 text-sm text-muted">대결이 진행 중일 때는 바꿀 수 없어요. 방 랭킹에도 새 이름으로 보여요.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <button type="button" className="candy candy-dark" onClick={() => setRenaming(false)}>취소</button>
+            <button className="candy" disabled={busy || newNick.trim().length === 0 || newNick.trim() === player.nickname}>바꾸기</button>
+          </div>
+        </form>
+      </Modal>
       <header className="flex items-center justify-between">
         <Logo small />
         <button className="candy candy-dark candy-sm" onClick={() => setRules(true)}>규칙</button>
@@ -133,7 +161,10 @@ export default function Room() {
         <h1 className="mb-4 text-3xl">{room.title}</h1>
         <div className="mb-4 flex items-center justify-between rounded-2xl bg-bg/60 px-4 py-3">
           <div>
-            <div className="text-sm text-muted">{player.nickname}</div>
+            <div className="flex items-center gap-2 text-sm text-muted">
+              {player.nickname}
+              <button className="rounded-full bg-surface2 px-2 py-0.5 text-xs text-ink" onClick={() => { setNewNick(player.nickname); setRenameMsg(null); setRenaming(true) }} aria-label="닉네임 변경">✏️ 변경</button>
+            </div>
             <div className="text-2xl tabular-nums">{me ? `${me.rank}위` : '-'}</div>
           </div>
           <div className="text-right">

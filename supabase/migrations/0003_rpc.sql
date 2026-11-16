@@ -91,6 +91,47 @@ begin
                             'matches_won', pl.matches_won, 'final_rank', pl.final_rank);
 end $$;
 
+-- 닉네임 변경: 같은 방 안에서 겹치지 않아야 하고(대소문자 무시), 대결이 진행 중인 동안에는 바꿀 수 없다
+-- (게임 도중 다른 사람 행세를 하는 것을 막는다). 대기 테이블에 앉아 있는 동안은 가능하다.
+create function public.card_rename_player(p_room_id uuid, p_nickname text)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_uid uuid := auth.uid();
+  v_nick text := btrim(regexp_replace(coalesce(p_nickname, ''), '\s+', ' ', 'g'));
+  r card_rooms%rowtype;
+  pl card_players%rowtype;
+  v_m uuid;
+begin
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  select * into r from card_rooms where id = p_room_id;
+  if not found then raise exception 'ROOM_NOT_FOUND'; end if;
+  if r.status <> 'open' then raise exception 'ROOM_CLOSED'; end if;
+  select * into pl from card_players where room_id = p_room_id and uid = v_uid;
+  if not found then raise exception 'NOT_JOINED'; end if;
+  if char_length(v_nick) < 1 or char_length(v_nick) > 12 then raise exception 'BAD_NICKNAME'; end if;
+
+  if exists (select 1 from card_match_players mp join card_matches m on m.id = mp.match_id
+              where mp.player_id = pl.id and not mp.left_match and m.status = 'playing') then
+    raise exception 'IN_MATCH';
+  end if;
+
+  begin
+    update card_players set nickname = v_nick, last_seen = now() where id = pl.id returning * into pl;
+  exception when unique_violation then
+    raise exception 'NICKNAME_TAKEN';
+  end;
+
+  -- 대기 테이블에 앉아 있으면 그 화면도 갱신
+  for v_m in select mp.match_id from card_match_players mp join card_matches m on m.id = mp.match_id
+              where mp.player_id = pl.id and m.status = 'waiting' loop
+    perform card_game.notify('card_match:' || v_m);
+  end loop;
+  perform card_game.notify('card_room:' || p_room_id);
+  return jsonb_build_object('id', pl.id, 'nickname', pl.nickname, 'status', pl.status,
+                            'total_profit', pl.total_profit, 'matches_played', pl.matches_played,
+                            'matches_won', pl.matches_won, 'final_rank', pl.final_rank);
+end $$;
+
 -- 내 상태: 플레이어 정보 + 앉아 있는 테이블(대기 중이거나 진행 중, 재접속 복귀용)
 create function public.card_my_status(p_room_id uuid)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
@@ -589,6 +630,7 @@ revoke all on function card_game.chat_channel(uuid, uuid) from public;
 revoke execute on function
   public.card_create_room(text, text),
   public.card_create_room_ex(text, text, boolean),
+  public.card_rename_player(uuid, text),
   public.card_send_chat(uuid, text),
   public.card_get_chat(uuid, bigint),
   public.card_get_room_view(uuid),
@@ -610,6 +652,7 @@ from public, anon, authenticated;
 grant execute on function
   public.card_create_room(text, text),
   public.card_create_room_ex(text, text, boolean),
+  public.card_rename_player(uuid, text),
   public.card_send_chat(uuid, text),
   public.card_get_chat(uuid, bigint),
   public.card_get_room_view(uuid),
