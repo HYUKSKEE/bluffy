@@ -285,5 +285,6 @@ export function useChat(matchId: string, open: boolean) {
     },
     [matchId, refresh],
   )
-  return { messages, channel, unread, send, sendEmote, emote }
+  const clearEmote = useCallback(() => setEmote(null), [])
+  return { messages, channel, unread, send, sendEmote, emote, clearEmote }
 }

@@ -2,7 +2,7 @@ import { lazy, Suspense, useMemo, useState } from 'react'
 import { api, friendly, isConnectionError, modeTone, type Mode, type MatchState, type SeatInfo, type VisibleHand } from '../lib/api'
 import { useMatch, useTicker } from '../lib/hooks'
 import { handName, legalFor, TURN_SECONDS } from '../game/rules'
-import { Chips, ErrorScreen, Modal, PileBadge, RulesModal, Spinner } from '../components/ui'
+import { Chips, ErrorScreen, Modal, PileBadge, ResultToast, RulesModal, Spinner } from '../components/ui'
 import type { StageCard, StageOpp } from '../components/MatchStage'
 import TableWaiting from './TableWaiting'
 import ChatPanel from '../components/ChatPanel'
@@ -209,14 +209,6 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
           </div>
         </div>
 
-        {banner && !over && (
-          <div className="pointer-events-none absolute inset-x-0 top-1 flex justify-center">
-            <div key={h!.id + 'b'} className={`animate-pop rounded-full px-4 py-1.5 text-center shadow-lg backdrop-blur-[2px] ${banner.tone === 'blue' ? 'bg-blue/60' : 'bg-red/60'}`}>
-              <span className="text-xl">{banner.text}</span>
-              {banner.sub && <span className="ml-2 text-xs opacity-90">{banner.sub}</span>}
-            </div>
-          </div>
-        )}
         {m.mode === 'B' && betting && me.in_hand && (
           <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-xs text-muted">내 카드는 이마에 붙어 있어요 — 나는 몰라요!</p>
         )}
@@ -229,6 +221,7 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
       </section>
 
       {/* 행동 로그 */}
+      <div className="min-h-[2.25rem]">{banner && !over && <ResultToast key={h!.id} tone={banner.tone} text={banner.text} sub={banner.sub ?? undefined} />}</div>
       <ul className="mb-2 min-h-[4rem] space-y-0.5 text-sm text-muted" aria-live="polite">
         {state.actions.slice(-4).map((a) => (
           <li key={a.id} className={`animate-pop ${a.seat === mySeat ? 'text-blue-soft' : 'text-red-soft'}`}>{describe(a, nameOfSeat(a.seat))}</li>

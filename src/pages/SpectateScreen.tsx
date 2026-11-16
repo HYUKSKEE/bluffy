@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from 'react'
 import { friendly, isConnectionError, type SeatInfo } from '../lib/api'
 import { useSpectate, useTicker } from '../lib/hooks'
-import { Chips, ErrorScreen, PileBadge, RulesModal, Spinner } from '../components/ui'
+import { Chips, ErrorScreen, PileBadge, ResultToast, RulesModal, Spinner } from '../components/ui'
 import type { StageOpp } from '../components/MatchStage'
 import ChatPanel from '../components/ChatPanel'
 import { handName } from '../game/rules'
@@ -113,14 +113,6 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
         <div className="pointer-events-none absolute bottom-[8%] left-1/2 -translate-x-1/2">
           <div className="rounded-full bg-black/40 px-2.5 py-0.5 text-sm">판돈 <Chips n={h?.pot ?? 0} /></div>
         </div>
-        {finishedHand && res && !over && (
-          <div className="pointer-events-none absolute inset-x-0 top-1 flex justify-center">
-            <div key={h!.id + 'b'} className="animate-pop rounded-full bg-blue/60 px-4 py-1.5 text-center shadow-lg backdrop-blur-[2px]">
-              <span className="text-lg">{res.winners.map((w) => nameOfSeat(w.seat)).join(', ')} 승!</span>
-              <span className="ml-2 text-xs opacity-90">{res.reason === 'fold' ? '모두 다이' : '쇼다운'} · 판돈 {res.pot}</span>
-            </div>
-          </div>
-        )}
         <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-xs text-muted">
           관전자는 모든 카드를 볼 수 있어요 — 참가자에게 알려주면 안 돼요!
         </p>
@@ -131,6 +123,11 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
         )}
       </section>
 
+      <div className="min-h-[2.25rem]">
+        {finishedHand && res && !over && (
+          <ResultToast key={h!.id} tone="blue" text={`${res.winners.map((w) => nameOfSeat(w.seat)).join(', ')} 승!`} sub={`${res.reason === 'fold' ? '모두 다이' : '쇼다운'} · 판돈 ${res.pot}`} />
+        )}
+      </div>
       <ul className="mb-2 min-h-[4rem] space-y-0.5 text-sm text-muted" aria-live="polite">
         {state.actions.slice(-4).map((a) => {
           const what = a.action === 'bet' || a.action === 'raise' ? `${ACTION_LABEL[a.action]} +${a.amount}` : a.action === 'call' ? `콜 (${a.amount})` : ACTION_LABEL[a.action]

@@ -16,7 +16,7 @@ const textOf = (body: string) => {
  */
 export default function ChatPanel({ matchId, bottom = 16 }: { matchId: string; bottom?: number }) {
   const [open, setOpen] = useState(false)
-  const { messages, channel, unread, send, sendEmote, emote } = useChat(matchId, open)
+  const { messages, channel, unread, send, sendEmote, emote, clearEmote } = useChat(matchId, open)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -64,10 +64,10 @@ export default function ChatPanel({ matchId, bottom = 16 }: { matchId: string; b
       {/* 이모지가 왔을 때 잠깐 뜨는 큰 표시 */}
       {emote && (
         <div className="pointer-events-none fixed inset-x-0 top-16 z-50 flex justify-center px-4" aria-live="polite">
-          <div key={emote.id} className="animate-pop flex items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 shadow-lg">
+          <button type="button" onClick={clearEmote} aria-label="이모지 닫기" key={emote.id} className="animate-pop pointer-events-auto flex items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 shadow-lg">
             <span className="animate-bounceY text-3xl leading-none">{emoteInfo(emote.key).emoji}</span>
             <span className="text-sm">{emote.mine ? '나' : emote.nickname}: {emoteInfo(emote.key).text}</span>
-          </div>
+          </button>
         </div>
       )}
 

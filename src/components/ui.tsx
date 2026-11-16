@@ -113,6 +113,27 @@ export function RulesModal({ forceOpen, onClose }: { forceOpen?: boolean; onClos
   )
 }
 
+/**
+ * 판 결과(승리/패배 등) 알림: 카드 위에 겹치지 않도록 화면 흐름 안(행동 로그 줄)에 놓고,
+ * 누르면 바로 사라진다. 다음 판으로 넘어가면 key 가 바뀌어 새로 나타난다.
+ */
+export function ResultToast({ tone, text, sub }: { tone: 'blue' | 'red'; text: string; sub?: string }) {
+  const [shown, setShown] = useState(true)
+  if (!shown) return null
+  return (
+    <button
+      type="button"
+      onClick={() => setShown(false)}
+      className={`animate-pop mb-1 flex w-full items-center justify-center gap-2 rounded-full px-4 py-1.5 text-center text-ink ${tone === 'blue' ? 'bg-blue/45' : 'bg-red/45'}`}
+      aria-label="결과 알림 (누르면 닫혀요)"
+    >
+      <span className="text-lg">{text}</span>
+      {sub && <span className="text-xs opacity-90">{sub}</span>}
+      <span className="text-xs opacity-60" aria-hidden>✕</span>
+    </button>
+  )
+}
+
 /** 이미지 저작자 표시 (화투 그림: CC BY-SA 4.0) */
 export function CreditsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (

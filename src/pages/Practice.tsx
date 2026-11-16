@@ -6,7 +6,7 @@ import {
 } from '../game/practice'
 import { handName, legalActions, MAX_HANDS } from '../game/rules'
 import { playSfx } from '../lib/sound'
-import { Chips, Logo, Modal, PileBadge, RulesModal, Spinner } from '../components/ui'
+import { Chips, Logo, Modal, PileBadge, ResultToast, RulesModal, Spinner } from '../components/ui'
 import { SoundButton } from '../components/SoundButton'
 import { SeotdaChartButton } from '../components/SeotdaChart'
 import type { StageCard, StageOpp } from '../components/MatchStage'
@@ -262,14 +262,6 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
             판돈 <Chips n={pot} />
           </div>
         </div>
-        {banner && (
-          <div className="pointer-events-none absolute inset-x-0 top-1 flex justify-center">
-            <div key={g.handNo + 'b'} className={`animate-pop rounded-full px-4 py-1.5 text-center shadow-lg backdrop-blur-[2px] ${banner.tone === 'blue' ? 'bg-blue/60' : 'bg-red/60'}`}>
-              <span className="text-xl">{banner.text}</span>
-              <span className="ml-2 text-xs opacity-90">{banner.sub}</span>
-            </div>
-          </div>
-        )}
         {mode === 'C' && betting && me.inHand && (
           <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-xs text-muted">내 카드만 보여요 — 상대는 베팅만 보고 읽어요!</p>
         )}
@@ -278,6 +270,7 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
         )}
       </section>
 
+      <div className="min-h-[2.25rem]">{banner && <ResultToast key={g.handNo} tone={banner.tone} text={banner.text} sub={banner.sub} />}</div>
       <ul className="mb-2 min-h-[4rem] space-y-0.5 text-sm text-muted" aria-live="polite">
         {g.log.slice(-4).map((a) => (
           <li key={a.id} className={`animate-pop ${a.seat === 0 ? 'text-blue-soft' : 'text-red-soft'}`}>{describe(a, g.names[a.seat])}</li>
