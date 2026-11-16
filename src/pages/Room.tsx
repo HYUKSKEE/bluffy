@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, friendly, GameError, isConnectionError, type RankRow } from '../lib/api'
-import { ensureAuth } from '../lib/supabase'
+import { ensureAuth, resetAccount } from '../lib/supabase'
 import { useRoom, useTables } from '../lib/hooks'
 import { Chips, CopyButton, ErrorScreen, Logo, Modal, RulesModal, Spinner } from '../components/ui'
 import MatchScreen from './MatchScreen'
@@ -46,6 +46,7 @@ export default function Room() {
   const [renaming, setRenaming] = useState(false)
   const [newNick, setNewNick] = useState('')
   const [renameMsg, setRenameMsg] = useState<string | null>(null)
+  const [confirmReset, setConfirmReset] = useState(false)
   const tables = useTables(id, Boolean(player) && !inMatch && !watching)
 
   useEffect(() => { ensureAuth().catch(() => setAuthFail(true)) }, [])
@@ -116,6 +117,18 @@ export default function Room() {
       else setMsg(friendly(err))
     } finally { setBusy(false); void refresh() }
   }
+  const doReset = async () => {
+    setBusy(true)
+    setRenameMsg(null)
+    try {
+      await resetAccount()
+      try { localStorage.removeItem(NICK_KEY) } catch { /* noop */ }
+      window.location.reload() // 새 계정으로 처음부터 (닉네임 입력 화면부터)
+    } catch (err) {
+      setRenameMsg(friendly(err))
+      setBusy(false)
+    }
+  }
   const rename = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true)
@@ -136,9 +149,10 @@ export default function Room() {
   return (
     <main className="page pb-10 pt-5">
       <RulesModal forceOpen={rules} onClose={() => setRules(false)} />
-      <Modal open={renaming} onClose={() => setRenaming(false)} title="닉네임 변경">
+      <Modal open={renaming} onClose={() => { setRenaming(false); setConfirmReset(false) }} title="내 계정">
         <form onSubmit={rename}>
-          <input className="field mb-3" maxLength={12} value={newNick} onChange={(e) => setNewNick(e.target.value)} placeholder="최대 12자" autoFocus aria-label="새 닉네임" />
+          <label htmlFor="newnick" className="mb-2 block text-blue-soft">닉네임만 바꾸기</label>
+          <input id="newnick" className="field mb-3" maxLength={12} value={newNick} onChange={(e) => setNewNick(e.target.value)} placeholder="최대 12자" autoFocus aria-label="새 닉네임" />
           {renameMsg && <p role="alert" className="mb-3 text-red-soft">{renameMsg}</p>}
           <p className="mb-4 text-sm text-muted">대결이 진행 중일 때는 바꿀 수 없어요. 방 랭킹에도 새 이름으로 보여요.</p>
           <div className="grid grid-cols-2 gap-3">
@@ -146,6 +160,23 @@ export default function Room() {
             <button className="candy" disabled={busy || newNick.trim().length === 0 || newNick.trim() === player.nickname}>바꾸기</button>
           </div>
         </form>
+
+        <hr className="my-5 border-white/10" />
+        <h3 className="mb-1 text-blue-soft">계정 초기화하기</h3>
+        <p className="mb-3 text-sm leading-relaxed text-muted">
+          이 기기의 익명 계정을 새로 만들어요. 지금의 칩 수익·랭킹은 이어받을 수 없고, 닉네임부터 다시 정해요. (이전 기록은 방 랭킹에 예전 이름으로 남아요)
+        </p>
+        {!confirmReset ? (
+          <button type="button" className="candy candy-dark w-full" disabled={busy} onClick={() => setConfirmReset(true)}>계정 초기화</button>
+        ) : (
+          <div className="rounded-2xl bg-red/15 p-3">
+            <p className="mb-3 text-sm text-red-soft">정말 초기화할까요? 되돌릴 수 없어요.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button type="button" className="candy candy-dark" onClick={() => setConfirmReset(false)}>아니요</button>
+              <button type="button" className="candy" disabled={busy} onClick={() => void doReset()}>{busy ? '초기화 중...' : '네, 초기화'}</button>
+            </div>
+          </div>
+        )}
       </Modal>
       <header className="flex items-center justify-between">
         <Logo small />
@@ -163,7 +194,7 @@ export default function Room() {
           <div>
             <div className="flex items-center gap-2 text-sm text-muted">
               {player.nickname}
-              <button className="rounded-full bg-surface2 px-2 py-0.5 text-xs text-ink" onClick={() => { setNewNick(player.nickname); setRenameMsg(null); setRenaming(true) }} aria-label="닉네임 변경">✏️ 변경</button>
+              <button className="rounded-full bg-surface2 px-2 py-0.5 text-xs text-ink" onClick={() => { setNewNick(player.nickname); setRenameMsg(null); setConfirmReset(false); setRenaming(true) }} aria-label="내 계정 (닉네임 변경, 계정 초기화)">✏️ 내 계정</button>
             </div>
             <div className="text-2xl tabular-nums">{me ? `${me.rank}위` : '-'}</div>
           </div>

@@ -14,6 +14,16 @@ export const supabase: SupabaseClient = createClient(url ?? 'http://localhost', 
 
 let authPromise: Promise<string> | null = null
 
+/**
+ * 계정 초기화: 이 기기의 익명 로그인 세션을 지우고 새 익명 사용자로 다시 시작한다.
+ * 새 계정은 이전 계정의 기록(칩 수익·랭킹)을 이어받지 않는다. (서버에는 어떤 계정 정보도 합치지 않는다)
+ */
+export async function resetAccount(): Promise<void> {
+  await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+  authPromise = null
+  await ensureAuth()
+}
+
 /** 익명 로그인 (세션은 localStorage 에 유지되어 새로고침/재접속 시 같은 사용자로 복귀) */
 export function ensureAuth(): Promise<string> {
   if (!authPromise) {
