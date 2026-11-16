@@ -38,12 +38,13 @@ export type DeckInfo =
   | { hard: true; sets: number; total: number; remaining: number; shuffle_no: number; fresh: boolean; marker_out: boolean }
 
 /** 빠른 반응(이모지). 서버가 저장하는 키와 같다. */
-export type EmoteKey = 'ugh' | 'taunt' | 'yes' | 'sad'
+export type EmoteKey = 'ugh' | 'taunt' | 'yes' | 'sad' | 'sg'
 export const EMOTES: { key: EmoteKey; emoji: string; text: string }[] = [
   { key: 'ugh', emoji: '😩', text: '아 패가...' },
   { key: 'taunt', emoji: '😏', text: '쫄?' },
   { key: 'yes', emoji: '🙌', text: '아싸!' },
   { key: 'sad', emoji: '😢', text: '슬퍼' },
+  { key: 'sg', emoji: '🎮', text: '스겜!' },
 ]
 /** 이모지 메시지의 본문은 제어문자(\u0001) + 키 (서버가 만들며, 일반 채팅으로는 만들 수 없다) */
 export const emoteOf = (body: string): EmoteKey | null => {

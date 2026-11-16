@@ -609,7 +609,7 @@ declare
   v_id bigint;
 begin
   if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
-  if p_emote is null or p_emote not in ('ugh', 'taunt', 'yes', 'sad') then raise exception 'BAD_EMOTE'; end if;
+  if p_emote is null or p_emote not in ('ugh', 'taunt', 'yes', 'sad', 'sg') then raise exception 'BAD_EMOTE'; end if;
   v_who := card_game.chat_channel(p_match_id, v_uid);
   if (select count(*) from card_chat_messages
        where match_id = p_match_id and player_id = (v_who->>'player_id')::uuid

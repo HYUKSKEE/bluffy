@@ -75,7 +75,7 @@ export default function ChatPanel({ matchId }: { matchId: string }) {
         </button>
       </div>
 
-      <div className="mt-2 grid grid-cols-4 gap-1.5" role="group" aria-label="빠른 반응">
+      <div className="mt-2 grid grid-cols-5 gap-1.5" role="group" aria-label="빠른 반응">
         {EMOTES.map((e) => (
           <button key={e.key} type="button" className="candy candy-dark !min-h-[44px] !rounded-2xl !px-1 !py-1 text-xs leading-tight" onClick={() => void doEmote(e.key)} aria-label={e.text}>
             <span className="block text-xl leading-none">{e.emoji}</span>

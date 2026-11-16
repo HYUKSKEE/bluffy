@@ -128,10 +128,10 @@ describe('이모지', () => {
   it('4가지만 보낼 수 있고, 같은 채널 사람에게만 보인다', async () => {
     const t = await setupMatch(db, 'A', 2)
     const spec = await spectator(t.roomId)
-    for (const e of ['ugh', 'taunt', 'yes', 'sad']) await rpc(db, t.users[0], 'send_emote', t.matchId, e)
+    for (const e of ['ugh', 'taunt', 'yes', 'sad', 'sg']) await rpc(db, t.users[0], 'send_emote', t.matchId, e)
     for (const bad of ['', 'angry', null, 'UGH']) await expect(rpc(db, t.users[0], 'send_emote', t.matchId, bad)).rejects.toThrow(/BAD_EMOTE|CHAT_RATE/)
     const other = await get(t.users[1], t.matchId)
-    expect(other.messages.map((m: any) => m.body)).toEqual(['\u0001ugh', '\u0001taunt', '\u0001yes', '\u0001sad'])
+    expect(other.messages.map((m: any) => m.body)).toEqual(['\u0001ugh', '\u0001taunt', '\u0001yes', '\u0001sad', '\u0001sg'])
     expect((await get(spec, t.matchId)).messages).toEqual([]) // 관전자 채널에는 안 보인다
   })
 
