@@ -29,13 +29,18 @@ export function Logo({ small = false }: { small?: boolean }) {
 
 export function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
+  // onClose 는 매 렌더마다 새 함수일 수 있으므로 ref 로 들고 있는다
+  // (effect 의존성에 넣으면 글자를 입력/삭제할 때마다 다시 실행되어 입력창의 포커스를 빼앗고 키패드가 닫힌다)
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current()
     document.addEventListener('keydown', onKey)
-    ref.current?.focus()
+    // 안에 이미 포커스된 입력창(autoFocus)이 없을 때만 대화상자로 포커스를 옮긴다
+    if (!ref.current?.contains(document.activeElement)) ref.current?.focus()
     return () => document.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [open])
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 pb-4 pt-10 sm:items-center" onClick={onClose}>
