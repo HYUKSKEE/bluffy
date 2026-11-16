@@ -7,6 +7,7 @@ import { Chips, CopyButton, ErrorScreen, Logo, Modal, RulesModal, Spinner } from
 import MatchScreen from './MatchScreen'
 import SpectateScreen from './SpectateScreen'
 import Practice from './Practice'
+import { SoundButton } from '../components/SoundButton'
 
 const NICK_KEY = 'bluffy_nick'
 
@@ -93,7 +94,10 @@ export default function Room() {
     return (
       <main className="page py-6">
         <RulesModal />
-        <Logo small />
+        <div className="flex items-center justify-between">
+          <Logo small />
+          <SoundButton />
+        </div>
         <form onSubmit={join} className="jelly-panel animate-pop mt-6 p-5">
           <p className="mb-1 text-sm text-blue-soft">초대받은 방</p>
           <h1 className="mb-1 text-3xl">{room.title}</h1>
@@ -185,7 +189,10 @@ export default function Room() {
       </Modal>
       <header className="flex items-center justify-between">
         <Logo small />
-        <button className="candy candy-dark candy-sm" onClick={() => setRules(true)}>규칙</button>
+        <div className="flex gap-1.5">
+          <SoundButton />
+          <button className="candy candy-dark candy-sm" onClick={() => setRules(true)}>규칙</button>
+        </div>
       </header>
 
       <section className="jelly-panel mt-4 p-5">

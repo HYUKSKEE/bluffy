@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { api, friendly, type MatchState } from '../lib/api'
 import { MAX_PLAYERS, MIN_PLAYERS, START_CHIPS } from '../game/rules'
 import { Chips, CopyButton } from '../components/ui'
+import { SoundButton } from '../components/SoundButton'
 
 /** 대기 테이블: 2~5명이 모일 때까지 기다리고, 방장이 마음대로 시작한다 (5명이면 자동 시작). */
 export default function TableWaiting({ state, myPlayerId, onLeave, children }: { state: MatchState; myPlayerId: string; onLeave: () => void; children?: ReactNode }) {
@@ -28,7 +29,10 @@ export default function TableWaiting({ state, myPlayerId, onLeave, children }: {
     <main className="page flex min-h-[100dvh] flex-col pb-10 pt-5">
       <header className="flex items-center justify-between">
         <button className="candy candy-dark candy-sm" onClick={onLeave}>자리 나가기</button>
-        <span className={`tag ${m.mode === 'B' ? 'tag-red' : ''}`}>{m.mode === 'A' ? 'A 모드 · 반공개' : 'B 모드 · 눈치'}</span>
+        <div className="flex items-center gap-2">
+          <span className={`tag ${m.mode === 'B' ? 'tag-red' : ''}`}>{m.mode === 'A' ? 'A 모드 · 반공개' : 'B 모드 · 눈치'}</span>
+          <SoundButton />
+        </div>
       </header>
 
       <section className="jelly-panel animate-pop mt-5 p-5">

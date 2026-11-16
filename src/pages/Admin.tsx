@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api, friendly, isConnectionError, loadAdminToken, saveAdminToken, subscribeSignal, type RoomView } from '../lib/api'
 import { ensureAuth } from '../lib/supabase'
 import { ErrorScreen, Logo, Modal, Spinner } from '../components/ui'
+import { SoundButton } from '../components/SoundButton'
 import { RankingList } from './Room'
 
 export default function Admin() {
@@ -53,7 +54,10 @@ export default function Admin() {
   if (!ok) {
     return (
       <main className="page py-6">
-        <Logo small />
+        <div className="flex items-center justify-between">
+          <Logo small />
+          <SoundButton />
+        </div>
         <div className="jelly-panel mt-6 p-5 text-center">
           <h1 className="mb-2 text-2xl">관리 권한이 없어요</h1>
           <p className="mb-4 text-muted">방을 만들 때 받은 <b className="text-ink">관리 링크</b>로 접속해주세요.</p>
@@ -77,7 +81,7 @@ export default function Admin() {
 
   return (
     <main className="page pb-10 pt-5">
-      <header className="flex items-center justify-between"><Logo small /><span className="tag tag-red">관리</span></header>
+      <header className="flex items-center justify-between"><Logo small /><div className="flex items-center gap-2"><span className="tag tag-red">관리</span><SoundButton /></div></header>
       <h1 className="mt-4 text-3xl">{view.room.title}</h1>
       <p className="text-sm text-muted">{view.room.mode === 'A' ? 'A 모드 · 반공개' : 'B 모드 · 눈치'} · {closed ? '종료됨' : '진행 중'}</p>
 

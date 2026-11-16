@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type OpenRoom } from '../lib/api'
 import { Logo, RulesBody, RulesModal } from '../components/ui'
+import { SoundButton } from '../components/SoundButton'
 
 export default function Home() {
   const [rules, setRules] = useState(false)
@@ -21,7 +22,10 @@ export default function Home() {
       <RulesModal />
       <header className="flex items-center justify-between">
         <Logo />
-        <button className="candy candy-dark candy-sm" onClick={() => setRules(true)}>규칙</button>
+        <div className="flex gap-1.5">
+          <SoundButton />
+          <button className="candy candy-dark candy-sm" onClick={() => setRules(true)}>규칙</button>
+        </div>
       </header>
 
       <section className="flex flex-1 flex-col items-center justify-center py-8 text-center">

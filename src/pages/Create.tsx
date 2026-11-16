@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, friendly, isConnectionError, saveAdminToken, type Mode } from '../lib/api'
 import { CopyButton, ErrorScreen, Logo } from '../components/ui'
+import { SoundButton } from '../components/SoundButton'
 
 const MODES: { id: Mode; name: string; tagline: string; desc: string; tone: 'red' | 'blue' }[] = [
   { id: 'A', name: 'A 모드 · 반공개', tagline: '정보는 적당히, 눈치는 팽팽하게', desc: '카드 2장 중 1장은 공개, 1장은 비공개. 나는 내 카드 2장과 각 상대의 공개 카드 1장을 봐요.', tone: 'blue' },
@@ -44,7 +45,10 @@ export default function Create() {
     const admin = `${origin}/r/${made.roomId}/admin#t=${made.token}`
     return (
       <main className="page py-6">
-        <Logo small />
+        <div className="flex items-center justify-between">
+          <Logo small />
+          <SoundButton />
+        </div>
         <div className="jelly-panel animate-pop mt-6 p-5">
           <h1 className="mb-1 text-2xl">방이 만들어졌어요!</h1>
           <p className="mb-5 text-muted">공유 링크를 친구들에게 보내세요.</p>
@@ -71,7 +75,10 @@ export default function Create() {
 
   return (
     <main className="page py-6">
-      <Logo small />
+      <div className="flex items-center justify-between">
+        <Logo small />
+        <SoundButton />
+      </div>
       <form onSubmit={submit} className="mt-6 flex flex-col gap-5">
         <h1 className="text-3xl">방 만들기</h1>
         <div>

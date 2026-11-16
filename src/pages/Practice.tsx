@@ -47,7 +47,10 @@ function Setup({ opts, setOpts, onStart, onExit }: { opts: PracticeOpts; setOpts
   ]
   return (
     <main className="page py-6">
-      <Logo small />
+      <div className="flex items-center justify-between">
+        <Logo small />
+        <SoundButton />
+      </div>
       <div className="mt-6 flex flex-col gap-5">
         <div>
           <h1 className="text-3xl">혼자 연습하기</h1>

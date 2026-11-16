@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { api, friendly, isConnectionError, subscribeSignal, type RankRow, type RoomView } from '../lib/api'
 import { ensureAuth } from '../lib/supabase'
 import { ErrorScreen, Logo, Spinner } from '../components/ui'
+import { SoundButton } from '../components/SoundButton'
 import { RankingList } from './Room'
 
 function Podium({ top, meId }: { top: RankRow[]; meId: string | null }) {
@@ -64,7 +65,7 @@ export default function Result() {
 
   return (
     <main className="page pb-10 pt-5">
-      <header className="flex items-center justify-between"><Logo small /><span className={`tag ${closed ? 'tag-red' : ''}`}>{closed ? '최종 결과' : '진행 중'}</span></header>
+      <header className="flex items-center justify-between"><Logo small /><div className="flex items-center gap-2"><span className={`tag ${closed ? 'tag-red' : ''}`}>{closed ? '최종 결과' : '진행 중'}</span><SoundButton /></div></header>
       <h1 className="mt-4 text-3xl">{view.room.title}</h1>
       <p className="text-sm text-muted">{closed ? '방이 종료되어 순위가 확정되었어요' : '아직 진행 중인 방이에요. 현재 순위예요.'}</p>
 
