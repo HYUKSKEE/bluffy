@@ -123,3 +123,29 @@ describe('채팅 — 보관 기간', () => {
     expect(rows).toEqual(['새 말'])
   })
 })
+
+describe('이모지', () => {
+  it('4가지만 보낼 수 있고, 같은 채널 사람에게만 보인다', async () => {
+    const t = await setupMatch(db, 'A', 2)
+    const spec = await spectator(t.roomId)
+    for (const e of ['ugh', 'taunt', 'yes', 'sad']) await rpc(db, t.users[0], 'send_emote', t.matchId, e)
+    for (const bad of ['', 'angry', null, 'UGH']) await expect(rpc(db, t.users[0], 'send_emote', t.matchId, bad)).rejects.toThrow(/BAD_EMOTE|CHAT_RATE/)
+    const other = await get(t.users[1], t.matchId)
+    expect(other.messages.map((m: any) => m.body)).toEqual(['\u0001ugh', '\u0001taunt', '\u0001yes', '\u0001sad'])
+    expect((await get(spec, t.matchId)).messages).toEqual([]) // 관전자 채널에는 안 보인다
+  })
+
+  it('일반 채팅으로는 이모지 메시지를 흉내 낼 수 없다', async () => {
+    const t = await setupMatch(db, 'A', 2)
+    await rpc(db, t.ua, 'send_chat', t.matchId, '\u0001ugh')
+    const m = (await get(t.ub, t.matchId)).messages[0]
+    expect(m.body).toBe('ugh') // 제어문자는 공백으로 바뀌어 사라진다
+  })
+
+  it('이모지도 도배 방지(10초에 5개) 대상이고, 입장하지 않은 사람은 보낼 수 없다', async () => {
+    const t = await setupMatch(db, 'A', 2)
+    for (let i = 0; i < 5; i++) await rpc(db, t.ua, 'send_emote', t.matchId, 'yes')
+    await expect(rpc(db, t.ua, 'send_emote', t.matchId, 'yes')).rejects.toThrow(/CHAT_RATE/)
+    await expect(rpc(db, newUser(), 'send_emote', t.matchId, 'yes')).rejects.toThrow(/NOT_JOINED/)
+  })
+})

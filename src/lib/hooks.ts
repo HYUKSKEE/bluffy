@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { playSfx } from './sound'
-import { api, subscribeSignal, type ChatMessage, type MatchState, type PlayerSelf, type RoomView, type SpectateState, type TableInfo, type VisibleHand } from './api'
+import { api, emoteOf, subscribeSignal, type ChatMessage, type EmoteKey, type MatchState, type PlayerSelf, type RoomView, type SpectateState, type TableInfo, type VisibleHand } from './api'
 
 /** 초 단위 이하로 갱신되는 현재 시각(ms). 서버 시계 보정은 호출하는 쪽에서 offset 을 더한다. */
 export function useTicker(intervalMs = 250): number {
@@ -206,6 +206,7 @@ export function useChat(matchId: string, open: boolean) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [channel, setChannel] = useState<'table' | 'spectate' | null>(null)
   const [unread, setUnread] = useState(0)
+  const [emote, setEmote] = useState<{ id: number; key: EmoteKey; nickname: string; mine: boolean } | null>(null)
   const lastId = useRef(0)
   const openRef = useRef(open)
   openRef.current = open
@@ -218,10 +219,19 @@ export function useChat(matchId: string, open: boolean) {
       if (r.messages.length === 0) return
       lastId.current = r.messages[r.messages.length - 1].id
       setMessages((m) => [...m, ...r.messages].slice(-100))
-      const incoming = r.messages.filter((x) => !x.mine).length
-      if (!first.current && incoming > 0) {
-        playSfx('msg')
-        if (!openRef.current) setUnread((u) => u + incoming)
+      if (!first.current) {
+        const fresh = r.messages.filter((x) => !x.mine)
+        const emotes = r.messages.filter((x) => emoteOf(x.body))
+        if (emotes.length > 0) {
+          // 새로 온 이모지 중 마지막 것을 화면에 띄우고 소리를 낸다 (내가 보낸 것도 확인용으로 함께)
+          const e = emotes[emotes.length - 1]
+          const key = emoteOf(e.body)!
+          setEmote({ id: e.id, key, nickname: e.nickname, mine: e.mine })
+          if (!e.mine) playSfx(`emote_${key}` as const)
+        } else if (fresh.length > 0) {
+          playSfx('msg')
+        }
+        if (fresh.length > 0 && !openRef.current) setUnread((u) => u + fresh.length)
       }
     } catch {
       /* 채팅은 부가 기능이라 실패해도 게임은 계속된다 */
@@ -252,6 +262,22 @@ export function useChat(matchId: string, open: boolean) {
     if (open) setUnread(0)
   }, [open])
 
+  // 화면에 띄운 이모지는 잠깐 뒤에 사라진다
+  useEffect(() => {
+    if (!emote) return
+    const t = setTimeout(() => setEmote(null), 2600)
+    return () => clearTimeout(t)
+  }, [emote])
+
+  const sendEmote = useCallback(
+    async (key: EmoteKey) => {
+      await api.sendEmote(matchId, key)
+      playSfx(`emote_${key}` as const) // 보낸 사람도 소리를 듣는다
+      await refresh()
+    },
+    [matchId, refresh],
+  )
+
   const send = useCallback(
     async (body: string) => {
       await api.sendChat(matchId, body)
@@ -259,5 +285,5 @@ export function useChat(matchId: string, open: boolean) {
     },
     [matchId, refresh],
   )
-  return { messages, channel, unread, send }
+  return { messages, channel, unread, send, sendEmote, emote }
 }

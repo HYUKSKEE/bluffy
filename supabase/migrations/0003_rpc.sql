@@ -599,6 +599,29 @@ begin
   return jsonb_build_object('id', v_id);
 end $$;
 
+-- 이모지(빠른 반응) 보내기: 채팅 메시지의 한 종류로 저장된다. 본문은 제어문자(\x01) + 키 이며,
+-- 일반 채팅(card_send_chat)은 제어문자를 공백으로 바꾸므로 사용자가 직접 흉내 낼 수 없다.
+create function public.card_send_emote(p_match_id uuid, p_emote text)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_uid uuid := auth.uid();
+  v_who jsonb;
+  v_id bigint;
+begin
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  if p_emote is null or p_emote not in ('ugh', 'taunt', 'yes', 'sad') then raise exception 'BAD_EMOTE'; end if;
+  v_who := card_game.chat_channel(p_match_id, v_uid);
+  if (select count(*) from card_chat_messages
+       where match_id = p_match_id and player_id = (v_who->>'player_id')::uuid
+         and created_at > now() - interval '10 seconds') >= 5 then
+    raise exception 'CHAT_RATE';
+  end if;
+  insert into card_chat_messages (match_id, channel, player_id, body)
+  values (p_match_id, v_who->>'channel', (v_who->>'player_id')::uuid, chr(1) || p_emote) returning id into v_id;
+  perform card_game.notify('card_chat:' || p_match_id || ':' || (v_who->>'channel'));
+  return jsonb_build_object('id', v_id);
+end $$;
+
 -- 채팅 읽기: 내 채널의 최근 메시지 (p_after 이후). player_id/uid 는 내보내지 않고 mine 만 알려준다.
 create function public.card_get_chat(p_match_id uuid, p_after bigint default 0)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
@@ -631,6 +654,7 @@ revoke execute on function
   public.card_create_room(text, text),
   public.card_create_room_ex(text, text, boolean),
   public.card_rename_player(uuid, text),
+  public.card_send_emote(uuid, text),
   public.card_send_chat(uuid, text),
   public.card_get_chat(uuid, bigint),
   public.card_get_room_view(uuid),
@@ -652,6 +676,7 @@ from public, anon, authenticated;
 grant execute on function
   public.card_create_room(text, text),
   public.card_create_room_ex(text, text, boolean),
+  public.card_send_emote(uuid, text),
   public.card_rename_player(uuid, text),
   public.card_send_chat(uuid, text),
   public.card_get_chat(uuid, bigint),

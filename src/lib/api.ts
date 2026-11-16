@@ -37,6 +37,21 @@ export type DeckInfo =
   | { hard: false }
   | { hard: true; sets: number; total: number; remaining: number; shuffle_no: number; fresh: boolean; marker_out: boolean }
 
+/** 빠른 반응(이모지). 서버가 저장하는 키와 같다. */
+export type EmoteKey = 'ugh' | 'taunt' | 'yes' | 'sad'
+export const EMOTES: { key: EmoteKey; emoji: string; text: string }[] = [
+  { key: 'ugh', emoji: '😩', text: '아 패가...' },
+  { key: 'taunt', emoji: '😏', text: '쫄?' },
+  { key: 'yes', emoji: '🙌', text: '아싸!' },
+  { key: 'sad', emoji: '😢', text: '슬퍼' },
+]
+/** 이모지 메시지의 본문은 제어문자(\u0001) + 키 (서버가 만들며, 일반 채팅으로는 만들 수 없다) */
+export const emoteOf = (body: string): EmoteKey | null => {
+  if (!body.startsWith('\u0001')) return null
+  const k = body.slice(1)
+  return EMOTES.some((e) => e.key === k) ? (k as EmoteKey) : null
+}
+
 export interface ChatMessage {
   id: number
   nickname: string
@@ -159,6 +174,7 @@ const MESSAGES: Record<string, string> = {
   RAISE_LIMIT: '이번 판 레이즈 횟수를 모두 썼어요.',
   BAD_AMOUNT: '걸 수 없는 금액이에요.',
   BAD_CHAT: '채팅은 1~80자로 적어주세요.',
+  BAD_EMOTE: '알 수 없는 이모지예요.',
   CHAT_RATE: '너무 빨라요! 잠시 뒤에 다시 보내주세요.',
   FORBIDDEN: '관리 권한이 없어요. 관리 링크로 들어와주세요.',
   NOT_HOST: '방장만 시작할 수 있어요.',
@@ -222,6 +238,7 @@ export const api = {
   startMatch: (matchId: string) => rpc<{ status: 'playing'; match_id: string }>('card_start_match', { p_match_id: matchId }),
   getMatchState: (matchId: string) => rpc<MatchState>('card_get_match_state', { p_match_id: matchId }),
   sendChat: (matchId: string, body: string) => rpc<{ id: number }>('card_send_chat', { p_match_id: matchId, p_body: body }),
+  sendEmote: (matchId: string, emote: EmoteKey) => rpc<{ id: number }>('card_send_emote', { p_match_id: matchId, p_emote: emote }),
   getChat: (matchId: string, after = 0) =>
     rpc<{ channel: 'table' | 'spectate'; messages: ChatMessage[] }>('card_get_chat', { p_match_id: matchId, p_after: after }),
   listTables: (roomId: string) => rpc<TableInfo[]>('card_list_tables', { p_room_id: roomId }),

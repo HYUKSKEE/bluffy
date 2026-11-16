@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
  * 효과음 + 배경음악. 외부 파일 없이 WebAudio 로 직접 합성한다 (저작권/용량 걱정 없음).
  * 브라우저 정책상 사용자의 첫 터치 뒤에야 소리가 나므로, 첫 pointerdown 에서 오디오를 깨운다.
  */
-export type Sfx = 'deal' | 'chip' | 'die' | 'check' | 'turn' | 'win' | 'lose' | 'shuffle' | 'msg'
+export type Sfx = 'deal' | 'chip' | 'die' | 'check' | 'turn' | 'win' | 'lose' | 'shuffle' | 'msg' | 'emote_ugh' | 'emote_taunt' | 'emote_yes' | 'emote_sad'
 
 export interface SoundSettings {
   sfx: boolean
@@ -141,6 +141,22 @@ export function playSfx(name: Sfx) {
       break
     case 'shuffle': // 촤르르
       for (let i = 0; i < 9; i++) noise(c, { t: i * 0.055, d: 0.06, freq: 3000 + (i % 3) * 700, g: 0.2 })
+      break
+    case 'emote_ugh': // 아 패가... : 풀 죽은 와~악 (아래로 휘청)
+      tone(c, { f: 392, d: 0.32, type: 'sawtooth', g: 0.1, slide: 0.6 })
+      tone(c, { f: 311, t: 0.3, d: 0.45, type: 'sawtooth', g: 0.1, slide: 0.55 })
+      break
+    case 'emote_taunt': // 쫄? : 약 올리는 "띠로리롱"
+      ;[784, 988, 784, 1175].forEach((f, i) => tone(c, { f, t: i * 0.09, d: 0.12, type: 'square', g: 0.07 }))
+      tone(c, { f: 1568, t: 0.4, d: 0.22, type: 'triangle', g: 0.1, slide: 1.25 })
+      break
+    case 'emote_yes': // 아싸! : 신나게 올라가는 반짝임
+      ;[523, 659, 784, 1047, 1319].forEach((f, i) => tone(c, { f, t: i * 0.07, d: 0.2, type: 'triangle', g: 0.18 }))
+      tone(c, { f: 2093, t: 0.38, d: 0.35, type: 'sine', g: 0.08 })
+      noise(c, { t: 0.36, d: 0.2, freq: 6500, g: 0.08 })
+      break
+    case 'emote_sad': // 슬퍼 : 느리게 내려가는 단조
+      ;[440, 392, 349, 330].forEach((f, i) => tone(c, { f, t: i * 0.24, d: 0.42, type: 'sine', g: 0.17 }))
       break
     case 'msg': // 채팅 알림
       tone(c, { f: 1040, d: 0.07, type: 'sine', g: 0.12 })

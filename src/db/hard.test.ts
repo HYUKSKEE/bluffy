@@ -140,13 +140,14 @@ describe('고난이도 모드 — 덱 순환', () => {
 })
 
 describe('수동 패치 SQL', () => {
-  it('patch_0005~0010 을 이미 반영된 DB 에 다시 실행해도 오류 없이 동작한다', async () => {
+  it('patch_0005~0011 을 이미 반영된 DB 에 다시 실행해도 오류 없이 동작한다', async () => {
     const { readFileSync } = await import('node:fs')
     await db.exec(readFileSync('supabase/patch_0005_ante_reveal.sql', 'utf8'))
     await db.exec(readFileSync('supabase/patch_0006_hard_mode.sql', 'utf8'))
     await db.exec(readFileSync('supabase/patch_0008_chat.sql', 'utf8'))
     await db.exec(readFileSync('supabase/patch_0009_flat_ante.sql', 'utf8'))
     await db.exec(readFileSync('supabase/patch_0010_rename.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/patch_0011_emote.sql', 'utf8'))
     const t = await setup(2, true)
     expect((await state(t)).pile).toMatchObject({ hard: true, sets: 2, remaining: 16 })
     const st = await nextHand(t)
