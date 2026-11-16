@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  anteFor, applyAction, raiseAmounts, buildDeck, compareHands, compareRank, deal, evaluate, forfeitSeat, leadSeat, legalActions,
+  applyAction, buildDeck, compareHands, compareRank, deal, evaluate, forfeitSeat, leadSeat, legalActions,
   matchOutcome, matchProfit, matchWinners, potOf, settleFold, settleShowdown, shuffle, startHand, timeoutAction,
   toCall, type Action, type Cards, type HandEnd, type HandState,
 } from './rules'
@@ -56,27 +56,6 @@ describe('덱 / 배분', () => {
     expect(cards).toHaveLength(5)
     expect(rest).toHaveLength(10)
     expect(cards[2]).toEqual([5, 6])
-  })
-})
-
-describe('앤티 = 판 번호', () => {
-  it('판 번호만큼 앤티를 낸다', () => {
-    const { state } = startHand([100, 100, 100], 0, 0, 7)
-    expect(chipsOf(state)).toEqual([93, 93, 93])
-    expect(potOf(state)).toBe(21)
-    expect(state.level).toBe(7)
-  })
-  it('칩이 모자라면 가진 칩 전부를 앤티로 내고 올인', () => {
-    const { state } = startHand([100, 4, 100], 0, 0, 6)
-    expect(chipsOf(state)).toEqual([94, 0, 94])
-    expect(state.seats[1].committed).toBe(4)
-    expect(state.seats[1].pending).toBe(false)
-    expect(state.level).toBe(6)
-  })
-  it('계속 다이만 하면 10판 동안 55칩을 잃는다 (숨어서 이기기 방지)', () => {
-    let total = 0
-    for (let n = 1; n <= 10; n++) total += anteFor(n)
-    expect(total).toBe(55)
   })
 })
 
@@ -371,24 +350,11 @@ describe('랭킹 정렬', () => {
   })
 })
 
-describe('베팅 단위 = 앤티', () => {
-  it('5판: 5·10·15칩, 올인이 단위보다 작으면 그 금액만', () => {
-    const { state } = startHand([100, 100], 0, 0, 5)
-    const l = legalActions(state, 0)
-    expect(l).toMatchObject({ unit: 5, raiseMax: 15 })
-    expect(raiseAmounts(l)).toEqual([5, 10, 15])
-    expect(applyAction(state, 0, { type: 'bet', amount: 4 })).toMatchObject({ ok: false, error: 'BAD_AMOUNT' })
-    expect(applyAction(state, 0, { type: 'bet', amount: 16 })).toMatchObject({ ok: false, error: 'BAD_AMOUNT' })
-    expect(applyAction(state, 0, { type: 'bet', amount: 10 })).toMatchObject({ ok: true })
-    // 앤티 5를 내고 칩이 3 남음 → 3(올인)만 가능
-    const short = startHand([8, 100], 0, 0, 5).state
-    const ls = legalActions(short, 0)
-    expect(raiseAmounts(ls)).toEqual([3])
-    expect(applyAction(short, 0, { type: 'bet', amount: 3 })).toMatchObject({ ok: true })
-    expect(applyAction(short, 0, { type: 'bet', amount: 2 })).toMatchObject({ ok: false })
-  })
-  it('1판은 이전과 같다 (1·2·3칩)', () => {
-    const l = legalActions(startHand([100, 100], 0, 0, 1).state, 0)
-    expect(raiseAmounts(l)).toEqual([1, 2, 3])
+describe('판돈은 커지지 않는다', () => {
+  it('앤티는 항상 1칩, 베팅은 1~3칩', () => {
+    const { state } = startHand([100, 100, 100], 0, 0)
+    expect(chipsOf(state)).toEqual([99, 99, 99])
+    expect(state.level).toBe(1)
+    expect(legalActions(state, 0).raiseMax).toBe(3)
   })
 })

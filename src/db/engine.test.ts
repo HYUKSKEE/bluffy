@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { createDb, newUser, rpc, setupMatch, setupWaiting, sql, type Db, type Table } from './harness'
 import {
-  applyAction, leadSeat, legalActions, raiseAmounts, settleFold, settleShowdown, startHand, timeoutAction,
+  applyAction, leadSeat, legalActions, settleFold, settleShowdown, startHand, timeoutAction,
   type Action, type Cards, type HandEnd, type HandState,
 } from '../game/rules'
 
@@ -321,7 +321,7 @@ describe('판 결과 / 사이드 팟 / 이월', () => {
     await skipPause(t.matchId)
     expect((await rpc(db, t.ua, 'advance_match', t.matchId)).result).toBe('started')
     const n = await state(t)
-    expect(n.hand).toMatchObject({ hand_no: 2, pot: 5 }) // 앤티 2 × 2명 + 이월 1
+    expect(n.hand).toMatchObject({ hand_no: 2, pot: 3 })
     expect(n.match.carry).toBe(0)
     expect(n.seats.reduce((a: number, s: any) => a + s.chips, 0) + n.hand.pot).toBe(201)
   })
@@ -632,7 +632,7 @@ describe('TS 규칙 엔진과 SQL 엔진 교차 검증 (무작위 플레이)', (
           currentHand = st.hand.id
           const pre = st.seats.map((s: any) => (s.in_hand ? s.chips + s.committed : s.chips))
           const carryIn = (await sql(db, 'select carry_in from card_hands where id = $1', [st.hand.id])).rows[0].carry_in
-          const started = startHand(pre, carryIn, st.hand.lead_seat - 1, st.hand.hand_no)
+          const started = startHand(pre, carryIn, st.hand.lead_seat - 1)
           shadow = started.state
           shadowEnd = started.end
           expect(st.hand.lead_seat - 1).toBe(leadSeat(st.hand.hand_no, pre))
@@ -670,8 +670,7 @@ describe('TS 규칙 엔진과 SQL 엔진 교차 검증 (무작위 플레이)', (
         const opts: Action[] = [{ type: 'die' }]
         if (la.canCheck) opts.push({ type: 'check' })
         if (la.canCall) opts.push({ type: 'call' })
-        const amounts = raiseAmounts(la)
-        if (la.canRaise) opts.push({ type: la.raiseKind, amount: amounts[Math.floor(rng() * amounts.length)] })
+        if (la.canRaise) opts.push({ type: la.raiseKind, amount: 1 + Math.floor(rng() * la.raiseMax) })
         let a = opts[Math.floor(rng() * opts.length)]
         if (rng() < 0.05) a = timeoutAction(shadow!, seat)
 
@@ -680,15 +679,6 @@ describe('TS 규칙 엔진과 SQL 엔진 교차 검증 (무작위 플레이)', (
         if (!la.canCall) await expect(act(uid, st.hand.id, 'call')).rejects.toThrow(/NOTHING_TO_CALL/)
         if (!la.canRaise && la.raiseMax === 0 && st.hand.raise_count >= 3) {
           await expect(act(uid, st.hand.id, la.raiseKind, 1)).rejects.toThrow(/RAISE_LIMIT/)
-        }
-
-        // 앤티의 배수가 아니면서 올인도 아닌 금액은 TS·서버 모두 거부
-        if (la.canRaise && la.unit > 1) {
-          const bad = [1, 2, 3, 4, 5, 7].find((x) => x <= la.raiseMax && x % la.unit !== 0 && !amounts.includes(x))
-          if (bad !== undefined) {
-            expect(applyAction(shadow!, seat, { type: la.raiseKind, amount: bad })).toMatchObject({ ok: false, error: 'BAD_AMOUNT' })
-            await expect(act(uid, st.hand.id, la.raiseKind, bad)).rejects.toThrow(/BAD_AMOUNT/)
-          }
         }
 
         const r = applyAction(shadow!, seat, a)
@@ -721,20 +711,24 @@ describe('TS 규칙 엔진과 SQL 엔진 교차 검증 (무작위 플레이)', (
   })
 })
 
-describe('베팅 단위 = 앤티(판 번호)', () => {
-  it('서버: 5판이면 5·10·15칩만 가능하고, 올인은 예외로 허용', async () => {
+describe('판돈은 커지지 않는다 (서버)', () => {
+  it('판이 지나도 앤티는 1칩, 베팅은 1~3칩', async () => {
     const t = await setupMatch(db, 'A', 2)
-    const { st, uid } = await turn(t)
-    await sql(db, 'update card_hands set hand_no = 5 where id = $1', [st.hand.id]) // 앤티·베팅 단위 5
-    for (const bad of [1, 3, 4, 6, 16]) await expect(act(uid, st.hand.id, 'bet', bad)).rejects.toThrow(/BAD_AMOUNT/)
-    await act(uid, st.hand.id, 'bet', 10)
-    expect((await state(t)).hand).toMatchObject({ pot: 12, level: 11, current_bet: 10 })
-
-    // 칩이 모자란 상대: 콜 금액을 빼고 7칩만 남으면 7(올인)은 가능, 6은 불가
-    const { st: st2, uid: o, seat } = await turn(t)
-    await sql(db, 'update card_match_players set chips = 10 + 7 where match_id = $1 and seat = $2', [t.matchId, seat])
-    await expect(act(o, st2.hand.id, 'raise', 6)).rejects.toThrow(/BAD_AMOUNT/)
-    await act(o, st2.hand.id, 'raise', 7)
-    expect((await state(t)).hand.level).toBe(18)
+    let st = await state(t)
+    for (let i = 0; i < 4; i++) {
+      for (;;) {
+        st = await state(t)
+        if (st.hand.status === 'finished') break
+        await act(t.users[st.hand.turn_seat - 1], st.hand.id, 'die')
+      }
+      await skipPause(t.matchId)
+      await rpc(db, t.ua, 'advance_match', t.matchId)
+    }
+    st = await state(t)
+    expect(st.hand).toMatchObject({ hand_no: 5, pot: 2, level: 1 }) // 5판이어도 앤티 1 × 2명
+    const { uid } = await turn(t)
+    await expect(act(uid, st.hand.id, 'bet', 4)).rejects.toThrow(/BAD_AMOUNT/)
+    await act(uid, st.hand.id, 'bet', 3)
+    expect((await state(t)).hand).toMatchObject({ pot: 5, level: 4 })
   })
 })

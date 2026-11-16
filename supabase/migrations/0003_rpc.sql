@@ -499,6 +499,7 @@ begin
     perform card_game.notify('card_match:' || v_m);
   end loop;
   update card_players set status = 'idle', queued_at = null where room_id = p_room_id;
+  delete from card_chat_messages where match_id in (select id from card_matches where room_id = p_room_id); -- 방 종료: 채팅 삭제
 
   update card_players p set final_rank = s.rn
     from (select id, row_number() over (order by total_profit desc, matches_won desc, joined_at asc, id) as rn
@@ -509,6 +510,78 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+-- ───────────── 채팅 ─────────────
+-- 호출자가 어느 채널을 쓰는지: 이 매치에 앉아 있고 나가지 않았으면 'table', 같은 방의 다른 사람이면 'spectate'.
+create function card_game.chat_channel(p_match uuid, p_uid uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  m card_matches%rowtype;
+  v_pl uuid;
+  v_left boolean;
+  v_seat int;
+begin
+  select * into m from card_matches where id = p_match;
+  if not found then raise exception 'MATCH_NOT_FOUND'; end if;
+  select id into v_pl from card_players where room_id = m.room_id and uid = p_uid;
+  if v_pl is null then raise exception 'NOT_JOINED'; end if;
+  select mp.seat, mp.left_match into v_seat, v_left from card_match_players mp where mp.match_id = p_match and mp.player_id = v_pl;
+  return jsonb_build_object('player_id', v_pl, 'room_id', m.room_id,
+                            'channel', case when v_seat is not null and not v_left then 'table' else 'spectate' end);
+end $$;
+
+-- 채팅 보내기: 1~80자, 10초에 5개까지. 같은 채널 사람에게만 보인다.
+create function public.card_send_chat(p_match_id uuid, p_body text)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_uid uuid := auth.uid();
+  v_who jsonb;
+  v_body text := btrim(regexp_replace(coalesce(p_body, ''), '[[:cntrl:]]+', ' ', 'g'));
+  v_id bigint;
+begin
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  v_who := card_game.chat_channel(p_match_id, v_uid);
+  if char_length(v_body) < 1 or char_length(v_body) > 80 then raise exception 'BAD_CHAT'; end if;
+  if (select count(*) from card_chat_messages
+       where match_id = p_match_id and player_id = (v_who->>'player_id')::uuid
+         and created_at > now() - interval '10 seconds') >= 5 then
+    raise exception 'CHAT_RATE';
+  end if;
+
+  -- 끝난 지 10분 지난 테이블의 채팅은 지운다
+  delete from card_chat_messages c using card_matches x
+   where c.match_id = x.id and x.room_id = (v_who->>'room_id')::uuid
+     and x.status in ('finished', 'void') and coalesce(x.finished_at, x.created_at) < now() - interval '10 minutes';
+
+  insert into card_chat_messages (match_id, channel, player_id, body)
+  values (p_match_id, v_who->>'channel', (v_who->>'player_id')::uuid, v_body) returning id into v_id;
+  perform card_game.notify('card_chat:' || p_match_id || ':' || (v_who->>'channel'));
+  return jsonb_build_object('id', v_id);
+end $$;
+
+-- 채팅 읽기: 내 채널의 최근 메시지 (p_after 이후). player_id/uid 는 내보내지 않고 mine 만 알려준다.
+create function public.card_get_chat(p_match_id uuid, p_after bigint default 0)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_uid uuid := auth.uid();
+  v_who jsonb;
+begin
+  if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  v_who := card_game.chat_channel(p_match_id, v_uid);
+  return jsonb_build_object(
+    'channel', v_who->>'channel',
+    'messages', coalesce((
+      select jsonb_agg(jsonb_build_object('id', t.id, 'nickname', t.nickname, 'body', t.body,
+                                          'created_at', t.created_at, 'mine', t.mine) order by t.id)
+        from (select c.id, p.nickname, c.body, c.created_at, (c.player_id = (v_who->>'player_id')::uuid) as mine
+                from card_chat_messages c join card_players p on p.id = c.player_id
+               where c.match_id = p_match_id and c.channel = v_who->>'channel' and c.id > coalesce(p_after, 0)
+               order by c.id desc limit 50) t
+    ), '[]'::jsonb));
+end $$;
+
+-- 내부 함수는 클라이언트에 열지 않는다 (스키마 USAGE 도 없음)
+revoke all on function card_game.chat_channel(uuid, uuid) from public;
+
 -- ───────────── 실행 권한 ─────────────
 -- 함수는 기본적으로 PUBLIC(및 Supabase 기본 권한으로 anon)에 실행 권한이 열려 있으므로,
 -- 이 마이그레이션이 만든 card_ 함수만 하나씩 회수한 뒤 authenticated(익명 로그인 포함)에만 연다.
@@ -516,6 +589,8 @@ end $$;
 revoke execute on function
   public.card_create_room(text, text),
   public.card_create_room_ex(text, text, boolean),
+  public.card_send_chat(uuid, text),
+  public.card_get_chat(uuid, bigint),
   public.card_get_room_view(uuid),
   public.card_join_room(uuid, text),
   public.card_my_status(uuid),
@@ -535,6 +610,8 @@ from public, anon, authenticated;
 grant execute on function
   public.card_create_room(text, text),
   public.card_create_room_ex(text, text, boolean),
+  public.card_send_chat(uuid, text),
+  public.card_get_chat(uuid, bigint),
   public.card_get_room_view(uuid),
   public.card_join_room(uuid, text),
   public.card_my_status(uuid),

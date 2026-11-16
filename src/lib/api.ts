@@ -37,6 +37,14 @@ export type DeckInfo =
   | { hard: false }
   | { hard: true; sets: number; total: number; remaining: number; shuffle_no: number; fresh: boolean; marker_out: boolean }
 
+export interface ChatMessage {
+  id: number
+  nickname: string
+  body: string
+  created_at: string
+  mine: boolean
+}
+
 export interface SeatInfo {
   seat: number
   player_id: string
@@ -149,6 +157,8 @@ const MESSAGES: Record<string, string> = {
   WRONG_ACTION: '지금은 할 수 없는 행동이에요.',
   RAISE_LIMIT: '이번 판 레이즈 횟수를 모두 썼어요.',
   BAD_AMOUNT: '걸 수 없는 금액이에요.',
+  BAD_CHAT: '채팅은 1~80자로 적어주세요.',
+  CHAT_RATE: '너무 빨라요! 잠시 뒤에 다시 보내주세요.',
   FORBIDDEN: '관리 권한이 없어요. 관리 링크로 들어와주세요.',
   NOT_HOST: '방장만 시작할 수 있어요.',
   NOT_ENOUGH_PLAYERS: '2명 이상 모여야 시작할 수 있어요.',
@@ -209,6 +219,9 @@ export const api = {
   queueMatch: (roomId: string) => rpc<{ status: 'waiting' | 'playing'; match_id: string }>('card_queue_match', { p_room_id: roomId }),
   startMatch: (matchId: string) => rpc<{ status: 'playing'; match_id: string }>('card_start_match', { p_match_id: matchId }),
   getMatchState: (matchId: string) => rpc<MatchState>('card_get_match_state', { p_match_id: matchId }),
+  sendChat: (matchId: string, body: string) => rpc<{ id: number }>('card_send_chat', { p_match_id: matchId, p_body: body }),
+  getChat: (matchId: string, after = 0) =>
+    rpc<{ channel: 'table' | 'spectate'; messages: ChatMessage[] }>('card_get_chat', { p_match_id: matchId, p_after: after }),
   listTables: (roomId: string) => rpc<TableInfo[]>('card_list_tables', { p_room_id: roomId }),
   spectateMatch: (matchId: string) => rpc<SpectateState>('card_spectate_match', { p_match_id: matchId }),
   getVisibleHand: (matchId: string, handNo?: number) =>

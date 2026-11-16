@@ -134,6 +134,20 @@ create table public.card_match_decks (
   marker_out boolean not null default false      -- 이번 판에 셔플 예고 카드가 나왔는가 (이번 판이 끝나면 셔플)
 );
 
+-- ───────────── 채팅 ─────────────
+-- 테이블(매치)별 채팅. channel: 'table' = 앉은 참가자끼리, 'spectate' = 관전자끼리 (서로 안 보인다:
+-- 관전자는 모든 카드를 볼 수 있어서 참가자에게 알려줄 수 있기 때문). 방이 종료되면 지워지고,
+-- 끝난 테이블의 채팅도 10분 뒤 지워진다 (card_send_chat 이 정리).
+create table public.card_chat_messages (
+  id         bigint generated always as identity primary key,
+  match_id   uuid not null references public.card_matches(id) on delete cascade,
+  channel    text not null check (channel in ('table', 'spectate')),
+  player_id  uuid not null references public.card_players(id) on delete cascade,
+  body       text not null check (char_length(body) between 1 and 80),
+  created_at timestamptz not null default now()
+);
+create index card_chat_match_idx on public.card_chat_messages (match_id, channel, id);
+
 -- ───────────── RLS + 권한 ─────────────
 -- RLS 를 켜고 정책을 하나도 만들지 않는다 → 클라이언트 역할은 모든 행에 접근 불가.
 -- (security definer 함수는 테이블 소유자 권한으로 실행되어 RLS 를 우회한다.)
@@ -146,6 +160,7 @@ alter table public.card_hand_seats    enable row level security;
 alter table public.card_actions       enable row level security;
 alter table public.card_room_options  enable row level security;
 alter table public.card_match_decks   enable row level security;
+alter table public.card_chat_messages  enable row level security;
 
 -- Supabase 는 새 테이블에 anon/authenticated 권한을 기본 부여한다 → 이 마이그레이션이 만든 card_ 테이블만 회수.
 -- (기존 객체(다른 게임의 테이블/함수/시퀀스)는 절대 건드리지 않는다. identity 시퀀스는 테이블 권한을 따른다.)
@@ -153,10 +168,10 @@ alter table public.card_match_decks   enable row level security;
 revoke all on
   public.card_rooms, public.card_players, public.card_matches, public.card_match_players,
   public.card_hands, public.card_hand_seats, public.card_actions,
-  public.card_room_options, public.card_match_decks
+  public.card_room_options, public.card_match_decks, public.card_chat_messages
 from public;
 revoke all on
   public.card_rooms, public.card_players, public.card_matches, public.card_match_players,
   public.card_hands, public.card_hand_seats, public.card_actions,
-  public.card_room_options, public.card_match_decks
+  public.card_room_options, public.card_match_decks, public.card_chat_messages
 from anon, authenticated;

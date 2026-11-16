@@ -3,6 +3,9 @@ import { friendly, isConnectionError, type SeatInfo } from '../lib/api'
 import { useSpectate, useTicker } from '../lib/hooks'
 import { Chips, ErrorScreen, PileBadge, RulesModal, Spinner } from '../components/ui'
 import type { StageOpp } from '../components/MatchStage'
+import ChatPanel from '../components/ChatPanel'
+import { SoundButton } from '../components/SoundButton'
+import { useGameSounds } from '../lib/useGameSounds'
 
 const MatchStage = lazy(() => import('../components/MatchStage'))
 
@@ -14,6 +17,7 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
   const { state, error, refresh } = useSpectate(matchId)
   useTicker(500)
   const [rules, setRules] = useState(false)
+  useGameSounds(state, null)
 
   if (error && !state) {
     return isConnectionError(error)
@@ -63,10 +67,14 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
         <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={onExit}>나가기</button>
         <div className="text-center text-sm text-muted">
           <span className="tag">👀 관전 중</span>
-          <span className="ml-2">{Math.max(1, m.hand_no)} / {m.max_hands} 판 · 앤티 {Math.max(1, m.hand_no)} · {state.seats.filter((s) => !s.left).length}명</span>
+          <span className="ml-2">{Math.max(1, m.hand_no)} / {m.max_hands} 판 · {state.seats.filter((s) => !s.left).length}명</span>
         </div>
-        <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
+        <div className="flex gap-1.5">
+          <SoundButton />
+          <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
+        </div>
       </header>
+      <ChatPanel matchId={matchId} />
       <RulesModal forceOpen={rules} onClose={() => setRules(false)} />
 
       <PileBadge pile={state.pile} />

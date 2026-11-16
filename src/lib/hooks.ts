@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, subscribeSignal, type MatchState, type PlayerSelf, type RoomView, type SpectateState, type TableInfo, type VisibleHand } from './api'
+import { playSfx } from './sound'
+import { api, subscribeSignal, type ChatMessage, type MatchState, type PlayerSelf, type RoomView, type SpectateState, type TableInfo, type VisibleHand } from './api'
 
 /** 초 단위 이하로 갱신되는 현재 시각(ms). 서버 시계 보정은 호출하는 쪽에서 offset 을 더한다. */
 export function useTicker(intervalMs = 250): number {
@@ -197,4 +198,66 @@ export function useTables(roomId: string, enabled: boolean) {
     }
   }, [roomId, enabled, refresh])
   return tables
+}
+
+// ───────────── 채팅 ─────────────
+/** 내 채널(참가자 'table' / 관전자 'spectate')의 채팅. 새 메시지는 신호 + 폴링으로 가져온다. */
+export function useChat(matchId: string, open: boolean) {
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [channel, setChannel] = useState<'table' | 'spectate' | null>(null)
+  const [unread, setUnread] = useState(0)
+  const lastId = useRef(0)
+  const openRef = useRef(open)
+  openRef.current = open
+  const first = useRef(true)
+
+  const refresh = useCoalesced(async () => {
+    try {
+      const r = await api.getChat(matchId, lastId.current)
+      setChannel(r.channel)
+      if (r.messages.length === 0) return
+      lastId.current = r.messages[r.messages.length - 1].id
+      setMessages((m) => [...m, ...r.messages].slice(-100))
+      const incoming = r.messages.filter((x) => !x.mine).length
+      if (!first.current && incoming > 0) {
+        playSfx('msg')
+        if (!openRef.current) setUnread((u) => u + incoming)
+      }
+    } catch {
+      /* 채팅은 부가 기능이라 실패해도 게임은 계속된다 */
+    } finally {
+      first.current = false
+    }
+  })
+
+  useEffect(() => {
+    lastId.current = 0
+    first.current = true
+    setMessages([])
+    setUnread(0)
+    void refresh()
+  }, [matchId, refresh])
+
+  useEffect(() => {
+    const id = setInterval(() => void refresh(), 4000)
+    return () => clearInterval(id)
+  }, [refresh])
+
+  useEffect(() => {
+    if (!channel) return
+    return subscribeSignal(`card_chat:${matchId}:${channel}`, () => void refresh())
+  }, [matchId, channel, refresh])
+
+  useEffect(() => {
+    if (open) setUnread(0)
+  }, [open])
+
+  const send = useCallback(
+    async (body: string) => {
+      await api.sendChat(matchId, body)
+      await refresh()
+    },
+    [matchId, refresh],
+  )
+  return { messages, channel, unread, send }
 }

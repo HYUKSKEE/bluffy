@@ -281,9 +281,8 @@ begin
       from (select (i % 10) + 1 as n from generate_series(0, 19) i) s;
   end if;
 
-  -- 기본 판돈(앤티) = 판 번호 (1판 1칩, 2판 2칩, ... 10판 10칩). 칩이 모자라면 가진 칩 전부.
-  -- 계속 다이만 해도 앤티가 쌓여서, 초반에 크게 이긴 사람이 숨어서 이기는 것을 막는다.
-  select coalesce(sum(least(chips, v_no)), 0), coalesce(max(least(chips, v_no)), 0) into v_antes, v_level
+  -- 기본 판돈(앤티) = 매 판 1칩 고정. 칩이 없으면 참가하지 않는다.
+  select coalesce(sum(least(chips, 1)), 0), coalesce(max(least(chips, 1)), 0) into v_antes, v_level
     from card_match_players where match_id = p_match and seat = any (v_alive);
 
   insert into card_hands (match_id, hand_no, deck, pot, carry_in, level, lead_seat)
@@ -294,10 +293,10 @@ begin
     insert into card_hand_seats (hand_id, seat, cards, open_idx, in_hand, committed)
     values (v_hand, v_alive[v_i], array[v_deck[2 * v_i - 1], v_deck[2 * v_i]],
             1 + (get_byte(uuid_send(gen_random_uuid()), 15) & 1), true,
-            (select least(chips, v_no) from card_match_players where match_id = p_match and seat = v_alive[v_i]));
+            (select least(chips, 1) from card_match_players where match_id = p_match and seat = v_alive[v_i]));
   end loop;
 
-  update card_match_players set chips = chips - least(chips, v_no) where match_id = p_match and seat = any (v_alive);
+  update card_match_players set chips = chips - least(chips, 1) where match_id = p_match and seat = any (v_alive);
   update card_matches set hand_no = v_no, carry = 0, next_hand_at = null where id = p_match;
 
   -- 앤티를 내고도 칩이 남은 사람만 행동할 수 있다. 행동할 사람이 1명 이하면 베팅 없이 쇼다운.
@@ -354,11 +353,8 @@ begin
   elsif p_action in ('bet', 'raise') then
     if (p_action = 'bet') <> (to_call = 0) then raise exception 'WRONG_ACTION'; end if;
     if v_raise >= 3 then raise exception 'RAISE_LIMIT'; end if;
-    -- 베팅 1칸 = 앤티 = 판 번호. 최대 3칸, 가진 칩(콜 금액 제외)을 넘을 수 없다.
-    -- 금액은 앤티의 배수여야 하고, 칩이 모자라면 남은 칩 전부(올인)도 가능하다.
-    mx := least(3 * h.hand_no, my_stack - to_call);
-    if p_amount is null or p_amount < 1 or p_amount > mx
-       or (p_amount % h.hand_no <> 0 and p_amount <> my_stack - to_call) then raise exception 'BAD_AMOUNT'; end if;
+    mx := least(3, my_stack - to_call);       -- 최대 3칩, 가진 칩(콜 금액 제외)을 넘을 수 없다
+    if p_amount is null or p_amount < 1 or p_amount > mx then raise exception 'BAD_AMOUNT'; end if;
     pay := to_call + p_amount;
     my_stack := my_stack - pay;
     my_c := my_c + pay;

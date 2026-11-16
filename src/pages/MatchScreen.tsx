@@ -1,10 +1,13 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { api, friendly, isConnectionError, type MatchState, type SeatInfo, type VisibleHand } from '../lib/api'
 import { useMatch, useTicker } from '../lib/hooks'
-import { anteFor, legalFor, raiseAmounts, TURN_SECONDS } from '../game/rules'
+import { legalFor, TURN_SECONDS } from '../game/rules'
 import { Chips, ErrorScreen, Modal, PileBadge, RulesModal, Spinner } from '../components/ui'
 import type { StageCard, StageOpp } from '../components/MatchStage'
 import TableWaiting from './TableWaiting'
+import ChatPanel from '../components/ChatPanel'
+import { SoundButton } from '../components/SoundButton'
+import { useGameSounds } from '../lib/useGameSounds'
 
 const MatchStage = lazy(() => import('../components/MatchStage')) // three.js 는 대결 화면에서만 로드
 
@@ -39,6 +42,7 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
   const [leaving, setLeaving] = useState(false)
   const [rules, setRules] = useState(false)
   useTicker(200) // 타이머 막대 갱신
+  useGameSounds(state, state?.my_seat ?? null)
 
   const v = useMemo(() => {
     if (!state) return null
@@ -61,7 +65,14 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
   }
 
   // ───── 대기 테이블 ─────
-  if (m.status === 'waiting') return <TableWaiting state={state} myPlayerId={myPlayerId} onLeave={() => void leave()} />
+  if (m.status === 'waiting') {
+    return (
+      <>
+        <TableWaiting state={state} myPlayerId={myPlayerId} onLeave={() => void leave()} />
+        <ChatPanel matchId={matchId} />
+      </>
+    )
+  }
 
   const { mySeat, me, opps } = v
   const h = state.hand
@@ -72,7 +83,7 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
   const nameOfSeat = (seat: number) => state.seats.find((s) => s.seat === seat)?.nickname ?? '?'
   const res = h?.result ?? null
   const legal = betting && me.in_hand && !me.folded
-    ? legalFor({ chips: me.chips, committed: me.committed, level: h!.level, raiseCount: h!.raise_count, unit: anteFor(h!.hand_no) })
+    ? legalFor({ chips: me.chips, committed: me.committed, level: h!.level, raiseCount: h!.raise_count })
     : null
 
   // 카드는 같은 판의 것만 사용 (판이 막 바뀐 순간의 어긋남 방지)
@@ -134,10 +145,14 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
         <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setLeaving(true)} disabled={over}>나가기</button>
         <div className="text-center text-sm text-muted">
           <span className={`tag ${m.mode === 'B' ? 'tag-red' : ''}`}>{m.mode} 모드</span>
-          <span className="ml-2">{Math.max(1, m.hand_no)} / {m.max_hands} 판 · 앤티 {anteFor(Math.max(1, m.hand_no))} · {state.seats.filter((s) => !s.left).length}명</span>
+          <span className="ml-2">{Math.max(1, m.hand_no)} / {m.max_hands} 판 · {state.seats.filter((s) => !s.left).length}명</span>
         </div>
-        <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
+        <div className="flex gap-1.5">
+          <SoundButton />
+          <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
+        </div>
       </header>
+      <ChatPanel matchId={matchId} bottom={196} />
       <RulesModal forceOpen={rules} onClose={() => setRules(false)} />
 
       <PileBadge pile={state.pile} />
@@ -225,14 +240,11 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
           {betting && legal ? (
             <div className="flex flex-col gap-2.5">
               <div className="grid grid-cols-3 gap-2.5">
-                {[0, 1, 2].map((k) => {
-                  const n = raiseAmounts(legal)[k]
-                  return (
-                    <button key={k} className="candy candy-blue" disabled={!myTurn || busy || !legal.canRaise || n === undefined} onClick={() => n !== undefined && void doAct(legal.raiseKind, n)}>
-                      {n === undefined ? '-' : `${legal.raiseKind === 'bet' ? '베팅' : '레이즈'} +${n}`}
-                    </button>
-                  )
-                })}
+                {[1, 2, 3].map((n) => (
+                  <button key={n} className="candy candy-blue" disabled={!myTurn || busy || !legal.canRaise || n > legal.raiseMax} onClick={() => void doAct(legal.raiseKind, n)}>
+                    {legal.raiseKind === 'bet' ? '베팅' : '레이즈'} +{n}
+                  </button>
+                ))}
               </div>
               <div className="grid grid-cols-[1.6fr_1fr] gap-2.5">
                 {legal.canCall ? (
