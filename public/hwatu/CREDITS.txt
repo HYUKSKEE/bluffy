@@ -1,0 +1,30 @@
+화투 카드 그림 (public/hwatu/01.png ~ 20.png)
+
+저작자: Marcus Richert, Louie Mantia (Wikimedia Commons)
+라이선스: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+          https://creativecommons.org/licenses/by-sa/4.0/
+원본: https://commons.wikimedia.org/wiki/Category:PNG_Hwatu
+변경: 48장 중 섯다에 쓰는 20장을 골라 너비 500px 로 줄였습니다 (그림 자체는 수정하지 않음).
+이 폴더의 이미지(변경본)도 같은 CC BY-SA 4.0 조건으로 이용할 수 있습니다.
+
+파일 대응 (카드 id → 원본 파일 페이지)
+  01.png  Hwatu January Hikari.png  https://commons.wikimedia.org/wiki/File:Hwatu_January_Hikari.png
+  02.png  Hwatu January Tanzaku.png  https://commons.wikimedia.org/wiki/File:Hwatu_January_Tanzaku.png
+  03.png  Hwatu February Tane.png  https://commons.wikimedia.org/wiki/File:Hwatu_February_Tane.png
+  04.png  Hwatu February Tanzaku.png  https://commons.wikimedia.org/wiki/File:Hwatu_February_Tanzaku.png
+  05.png  Hwatu March Hikari.png  https://commons.wikimedia.org/wiki/File:Hwatu_March_Hikari.png
+  06.png  Hwatu March Tanzaku.png  https://commons.wikimedia.org/wiki/File:Hwatu_March_Tanzaku.png
+  07.png  Hwatu April Tane.png  https://commons.wikimedia.org/wiki/File:Hwatu_April_Tane.png
+  08.png  Hwatu April Tanzaku.png  https://commons.wikimedia.org/wiki/File:Hwatu_April_Tanzaku.png
+  09.png  Hwatu May Tane.png  https://commons.wikimedia.org/wiki/File:Hwatu_May_Tane.png
+  10.png  Hwatu May Tanzaku.png  https://commons.wikimedia.org/wiki/File:Hwatu_May_Tanzaku.png
+  11.png  Hwatu June Tane.png  https://commons.wikimedia.org/wiki/File:Hwatu_June_Tane.png
+  12.png  Hwatu June Tanzaku.png  https://commons.wikimedia.org/wiki/File:Hwatu_June_Tanzaku.png
+  13.png  Hwatu July Tane.png  https://commons.wikimedia.org/wiki/File:Hwatu_July_Tane.png
+  14.png  Hwatu July Tanzaku.png  https://commons.wikimedia.org/wiki/File:Hwatu_July_Tanzaku.png
+  15.png  Hwatu August Hikari.png  https://commons.wikimedia.org/wiki/File:Hwatu_August_Hikari.png
+  16.png  Hwatu August Tane.png  https://commons.wikimedia.org/wiki/File:Hwatu_August_Tane.png
+  17.png  Hwatu September Tane.png  https://commons.wikimedia.org/wiki/File:Hwatu_September_Tane.png
+  18.png  Hwatu September Tanzaku.png  https://commons.wikimedia.org/wiki/File:Hwatu_September_Tanzaku.png
+  19.png  Hwatu October Tane.png  https://commons.wikimedia.org/wiki/File:Hwatu_October_Tane.png
+  20.png  Hwatu October Tanzaku.png  https://commons.wikimedia.org/wiki/File:Hwatu_October_Tanzaku.png

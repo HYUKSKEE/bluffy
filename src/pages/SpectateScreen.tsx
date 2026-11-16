@@ -4,6 +4,7 @@ import { useSpectate, useTicker } from '../lib/hooks'
 import { Chips, ErrorScreen, PileBadge, RulesModal, Spinner } from '../components/ui'
 import type { StageOpp } from '../components/MatchStage'
 import ChatPanel from '../components/ChatPanel'
+import { handName } from '../game/rules'
 import { SoundButton } from '../components/SoundButton'
 import { useGameSounds } from '../lib/useGameSounds'
 
@@ -43,7 +44,7 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
     const sc = shown.get(o.seat)
     return {
       id: o.player_id,
-      label: `${short(o.nickname)} · ${o.chips}${tail}`,
+      label: `${short(o.nickname)} · ${o.chips}${tail}${m.seotda && sc && !out ? ` · ${handName([sc.cards[0], sc.cards[1]], 'seotda')}` : ''}`,
       cards: out ? [] : [0, 1].map((i) => ({
             value: sc?.cards[i] ?? null,
             // A: 상대에게 공개된 카드 / 본인만 아는 카드, B: 본인만 모르는 카드
@@ -64,14 +65,14 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
   return (
     <main className="page flex min-h-[100dvh] flex-col pb-8 pt-3">
       <header className="flex items-center justify-between gap-2">
-        <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={onExit}>나가기</button>
-        <div className="text-center text-sm text-muted">
+        <button className="candy candy-dark candy-sm !min-h-[40px] shrink-0 whitespace-nowrap !px-3 !py-2 text-sm" onClick={onExit}>나가기</button>
+        <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-center text-xs text-muted">
           <span className="tag">👀 관전 중</span>
           <span className="ml-2">{Math.max(1, m.hand_no)} / {m.max_hands} 판 · {state.seats.filter((s) => !s.left).length}명</span>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex shrink-0 gap-1.5">
           <SoundButton />
-          <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
+          <button className="candy candy-dark candy-sm !min-h-[40px] shrink-0 whitespace-nowrap !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
         </div>
       </header>
       <RulesModal forceOpen={rules} onClose={() => setRules(false)} />
@@ -104,6 +105,7 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
             me={{ cards: [], win: false, folded: false, active: false, label: '', out: true }}
             pot={h?.pot ?? 0}
             handKey={`${h?.id ?? 'none'}`}
+            hwatu={m.seotda}
           />
         </Suspense>
         <div className="pointer-events-none absolute bottom-[8%] left-1/2 -translate-x-1/2">

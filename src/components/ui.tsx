@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { DeckInfo } from '../lib/api'
+import { HWATU_CREDIT, HWATU_FILES } from '../lib/credits'
 
 export function Coin({ className = '' }: { className?: string }) {
   return <span className={`coin ${className}`} aria-hidden />
@@ -74,6 +75,9 @@ export function RulesBody() {
         <span className="tag tag-red mr-1.5">B 모드</span>모든 상대의 카드 2장이 보여요. 내 카드만 몰라요!
       </li>
       <li>
+        <span className="tag tag-red mr-1.5">섯다</span>화투 20장(1~10월 × 2장)! 광땡 &gt; 땡(장땡이 최고) &gt; 알리·독사·구삥·장삥·장사·세륙 &gt; 끗(갑오 9끗 … 망통 0끗). 암행어사(4월+7월 열끗)는 18·13광땡을, 땡잡이(3월 광+7월 열끗)는 1~9땡을 이겨요.
+      </li>
+      <li>
         <span className="tag tag-red mr-1.5">고난이도</span>덱을 섞지 않고 이어서 써요! 쓴 카드는 버린 더미로 가서 다시 볼 수 없으니 <b className="font-normal">공개된 패를 기억</b>하세요. 남은 장수는 보여요. 덱이 모자라거나 <b className="font-normal">셔플 예고 카드</b>가 나오면 그 판이 끝난 뒤 모두 섞고, 새 덱 첫 판엔 &quot;셔플 중&quot; 표시가 떠요.
       </li>
       <li className="text-sm text-muted">한 판이 끝나면 끝까지 남은 사람에게 모두의 패가 공개돼요(다이한 사람은 못 봐요). 칩은 가상이며 무료예요. 현금·경품과 무관해요.</li>
@@ -103,6 +107,34 @@ export function RulesModal({ forceOpen, onClose }: { forceOpen?: boolean; onClos
     <Modal open={open} onClose={close} title="30초 규칙 안내">
       <RulesBody />
       <button className="candy candy-blue mt-5 w-full" onClick={close}>알겠어요!</button>
+    </Modal>
+  )
+}
+
+/** 이미지 저작자 표시 (화투 그림: CC BY-SA 4.0) */
+export function CreditsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Modal open={open} onClose={onClose} title="이미지 저작자 표시">
+      <div className="space-y-3 text-sm leading-relaxed">
+        <p>
+          섯다 모드의 화투 카드 그림은 <b className="font-normal text-ink">{HWATU_CREDIT.authors}</b> 님의 작품이며 {HWATU_CREDIT.source}에서 가져왔어요.
+        </p>
+        <p>
+          라이선스: <a className="text-blue-soft underline" href={HWATU_CREDIT.licenseUrl} target="_blank" rel="noreferrer">{HWATU_CREDIT.license}</a>
+          {' · '}
+          <a className="text-blue-soft underline" href={HWATU_CREDIT.sourceUrl} target="_blank" rel="noreferrer">원본 보기</a>
+        </p>
+        <p className="text-muted">변경 사항: {HWATU_CREDIT.change} 이 변경본도 같은 {HWATU_CREDIT.license} 조건으로 이용할 수 있어요.</p>
+        <details className="text-muted">
+          <summary className="cursor-pointer">원본 파일 목록 (20개)</summary>
+          <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+            {HWATU_FILES.map(([name, url]) => (
+              <li key={url}><a className="text-blue-soft underline" href={url} target="_blank" rel="noreferrer">{name}</a></li>
+            ))}
+          </ul>
+        </details>
+      </div>
+      <button className="candy candy-blue mt-5 w-full" onClick={onClose}>닫기</button>
     </Modal>
   )
 }

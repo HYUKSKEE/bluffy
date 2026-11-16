@@ -25,7 +25,7 @@ export interface RankRow {
 }
 
 export interface RoomView {
-  room: { id: string; title: string; mode: Mode; status: 'open' | 'closed'; created_at: string; closed_at: string | null; hard: boolean; public: boolean }
+  room: { id: string; title: string; mode: Mode; status: 'open' | 'closed'; created_at: string; closed_at: string | null; hard: boolean; public: boolean; seotda: boolean }
   participants: number
   active_matches: number
   waiting_tables: number
@@ -38,6 +38,7 @@ export interface OpenRoom {
   title: string
   mode: Mode
   hard: boolean
+  seotda: boolean
   created_at: string
   participants: number
   active_matches: number
@@ -108,6 +109,8 @@ export interface MatchState {
     start_chips: number
     carry: number
     host_player_id: string
+    /** 섯다 룰 (카드 id 1~20 = 화투) */
+    seotda: boolean
     end_reason: 'bust' | 'complete' | 'forfeit' | 'void' | null
     next_hand_at: string | null
   }
@@ -175,6 +178,7 @@ const MESSAGES: Record<string, string> = {
   BAD_NICKNAME: '닉네임은 1~12자로 적어주세요.',
   NICKNAME_TAKEN: '이미 사용 중인 닉네임이에요.',
   IN_MATCH: '대결이 진행 중일 때는 닉네임을 바꿀 수 없어요.',
+  ROOM_IN_USE: '이미 대결이 시작된 방은 룰을 바꿀 수 없어요.',
   NOT_JOINED: '먼저 닉네임을 등록해주세요.',
   NOT_A_PLAYER: '이 매치의 참가자가 아니에요.',
   MATCH_NOT_FOUND: '매치를 찾을 수 없어요.',
@@ -242,6 +246,8 @@ async function rpc<T>(fn: string, args?: Record<string, unknown>): Promise<T> {
 export const api = {
   createRoom: (title: string, mode: Mode, hard = false) =>
     rpc<{ room_id: string; admin_token: string }>('card_create_room_ex', { p_title: title, p_mode: mode, p_hard: hard }),
+  setRoomSeotda: (roomId: string, token: string, on: boolean) =>
+    rpc<{ seotda: boolean }>('card_set_room_seotda', { p_room_id: roomId, p_admin_token: token, p_on: on }),
   listOpenRooms: () => rpc<OpenRoom[]>('card_list_open_rooms'),
   setRoomPublic: (roomId: string, token: string, isPublic: boolean) =>
     rpc<{ public: boolean }>('card_set_room_public', { p_room_id: roomId, p_admin_token: token, p_public: isPublic }),

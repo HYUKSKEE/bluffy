@@ -41,10 +41,10 @@ export function compareHands(a: Cards, b: Cards): 1 | -1 | 0 {
   return ea.value > eb.value ? 1 : -1
 }
 
-/** 1~10 카드 두 벌 (20장) */
-export function buildDeck(): number[] {
+/** 일반: 1~10 카드 두 벌(20장). 섯다: 화투 카드 id 1~20 (20장). */
+export function buildDeck(rules: RuleSet = 'standard'): number[] {
   const d: number[] = []
-  for (let i = 0; i < 20; i++) d.push((i % 10) + 1)
+  for (let i = 0; i < 20; i++) d.push(rules === 'seotda' ? i + 1 : (i % 10) + 1)
   return d
 }
 
@@ -64,6 +64,106 @@ export function deal(deck: readonly number[], n: number): { cards: Cards[]; rest
   const cards: Cards[] = []
   for (let i = 0; i < n; i++) cards.push([deck[2 * i], deck[2 * i + 1]])
   return { cards, rest: deck.slice(n * 2) }
+}
+
+// ───────────────────────── 섯다 룰 (화투 20장) ─────────────────────────
+/**
+ * 섯다: 화투 1~10월 두 장씩 20장. 카드 id 는 1~20 이며 월 = ceil(id / 2).
+ *   1월: 1=광 2=띠   2월: 3=열끗 4=띠   3월: 5=광 6=띠   4월: 7=열끗 8=띠   5월: 9=열끗 10=띠
+ *   6월: 11=열끗 12=띠   7월: 13=열끗 14=띠   8월: 15=광 16=열끗   9월: 17=열끗 18=띠   10월: 19=열끗 20=띠
+ * 족보(높은 순): 38광땡 > 18광땡 = 13광땡 > 장땡 > 9땡 … 1땡 > 알리 > 독사 > 구삥 > 장삥 > 장사 > 세륙 > 갑오(9끗) … 망통(0끗).
+ * 특수: 암행어사(4월 열끗 + 7월 열끗)는 18/13 광땡을 이기고(38광땡은 못 이김), 땡잡이(3월 광 + 7월 열끗)는
+ *       1~9땡을 이긴다(장땡·광땡은 못 이김). 이 둘은 상대 패에 해당 족보가 있을 때만 힘을 쓰고 아니면 일반 끗이다.
+ * (구사 재경기는 두지 않는다: 4+9 는 일반 3끗.)
+ */
+export type RuleSet = 'standard' | 'seotda'
+
+export const SEOTDA_CARDS = 20
+export const seotdaMonth = (id: number): number => Math.ceil(id / 2)
+
+/** 월 쌍의 특수 족보 (낮은 월, 높은 월) → 점수 */
+const SEOTDA_SPECIAL_MONTHS: Record<string, { name: string; rank: number }> = {
+  '1,2': { name: '알리', rank: 8000 },
+  '1,4': { name: '독사', rank: 7900 },
+  '1,9': { name: '구삥', rank: 7800 },
+  '1,10': { name: '장삥', rank: 7700 },
+  '4,10': { name: '장사', rank: 7600 },
+  '4,6': { name: '세륙', rank: 7500 },
+}
+
+/** 조건 없이 정해지는 기본 점수 (높을수록 강함). 같은 점수는 무승부. */
+export function seotdaRank(cards: Cards): number {
+  const [a, b] = cards
+  const ma = seotdaMonth(a)
+  const mb = seotdaMonth(b)
+  if (ma === mb) return 9000 + ma * 10 // 땡 (장땡 = 9100)
+  const lo = Math.min(a, b)
+  const hi = Math.max(a, b)
+  if (lo === 5 && hi === 15) return 13000 // 38광땡
+  if ((lo === 1 && hi === 15) || (lo === 1 && hi === 5)) return 12000 // 18광땡 / 13광땡
+  const sp = SEOTDA_SPECIAL_MONTHS[`${Math.min(ma, mb)},${Math.max(ma, mb)}`]
+  if (sp) return sp.rank
+  return 5000 + ((ma + mb) % 10) // 끗
+}
+
+/** 상대 패에 따라 힘이 생기는 특수 족보 */
+export function seotdaSpecial(cards: Cards): 'amhaeng' | 'ttaengjabi' | null {
+  const lo = Math.min(cards[0], cards[1])
+  const hi = Math.max(cards[0], cards[1])
+  if (lo === 7 && hi === 13) return 'amhaeng' // 4월 열끗 + 7월 열끗
+  if (lo === 5 && hi === 13) return 'ttaengjabi' // 3월 광 + 7월 열끗
+  return null
+}
+
+/**
+ * 한 팟(사이드 팟 단계)에 남은 사람들끼리의 점수: 특수 족보는 상대 패에 따라 올라간다.
+ * - 암행어사: 이 팟에 18/13광땡이 있으면 12500(38광땡 13000 바로 아래)
+ * - 땡잡이: 이 팟에 1~9땡이 있으면 9095(장땡 9100 바로 아래)
+ */
+export function seotdaShowdownRanks(hands: readonly Cards[]): number[] {
+  const base = hands.map(seotdaRank)
+  const hasGwang = base.some((r) => r === 12000)
+  const hasTtaeng = base.some((r) => r >= 9010 && r <= 9090)
+  return hands.map((h, i) => {
+    const sp = seotdaSpecial(h)
+    if (sp === 'amhaeng' && hasGwang) return 12500
+    if (sp === 'ttaengjabi' && hasTtaeng) return 9095
+    return base[i]
+  })
+}
+
+/** 화면 표시용 족보 이름 */
+export function handName(cards: Cards, rules: RuleSet = 'standard'): string {
+  if (rules === 'standard') {
+    const e = evaluate(cards)
+    return e.category === 'pair' ? `${e.value} 페어` : `합 ${e.value}`
+  }
+  const sp = seotdaSpecial(cards)
+  if (sp === 'amhaeng') return '암행어사'
+  if (sp === 'ttaengjabi') return '땡잡이'
+  const r = seotdaRank(cards)
+  if (r === 13000) return '38광땡'
+  if (r === 12000) return Math.min(cards[0], cards[1]) === 1 && Math.max(cards[0], cards[1]) === 15 ? '18광땡' : '13광땡'
+  if (r >= 9010 && r <= 9100) return r === 9100 ? '장땡' : `${(r - 9000) / 10}땡`
+  const ma = seotdaMonth(cards[0])
+  const mb = seotdaMonth(cards[1])
+  const sp2 = SEOTDA_SPECIAL_MONTHS[`${Math.min(ma, mb)},${Math.max(ma, mb)}`]
+  if (sp2) return sp2.name
+  const k = r - 5000
+  return k === 9 ? '갑오' : k === 0 ? '망통' : `${k}끗`
+}
+
+/** 컴퓨터용: 족보를 0~1 로 환산한 "강함" */
+export function handStrength(cards: Cards, rules: RuleSet = 'standard'): number {
+  if (rules === 'standard') {
+    const e = evaluate(cards)
+    return e.category === 'pair' ? 0.72 + (e.value / 10) * 0.28 : 0.05 + ((e.value - 3) / 16) * 0.6
+  }
+  const r = seotdaRank(cards)
+  if (r >= 12000) return 1
+  if (r >= 9000) return 0.8 + ((r - 9000) / 100) * 0.18 // 땡
+  if (r >= 7500) return 0.62 + ((r - 7500) / 500) * 0.12 // 알리 … 세륙
+  return 0.05 + ((r - 5000) / 9) * 0.5 // 끗
 }
 
 // ───────────────────────── 판 상태 ─────────────────────────
@@ -273,7 +373,7 @@ export function settleFold(s: HandState, winner: number): Settlement {
  * 쇼다운: 건 금액 단계별(사이드 팟)로 생존자 중 가장 높은 족보가 가져간다.
  * 동점이면 나누고 남는 칩은 다음 판으로 이월. hands[i] 는 생존자의 카드.
  */
-export function settleShowdown(s: HandState, hands: readonly (Cards | null)[]): Settlement {
+export function settleShowdown(s: HandState, hands: readonly (Cards | null)[], rules: RuleSet = 'standard'): Settlement {
   const payouts = s.seats.map(() => 0)
   const levels = [...new Set(s.seats.map((x) => x.committed).filter((c) => c > 0))].sort((a, b) => a - b)
   let prev = 0
@@ -295,10 +395,17 @@ export function settleShowdown(s: HandState, hands: readonly (Cards | null)[]): 
       continue
     }
     let winners = [eligible[0]]
-    for (const i of eligible.slice(1)) {
-      const c = compareHands(hands[i]!, hands[winners[0]]!)
-      if (c > 0) winners = [i]
-      else if (c === 0) winners.push(i)
+    if (rules === 'seotda') {
+      // 특수 족보(암행어사·땡잡이)는 이 팟에 남은 사람들의 패에 따라 힘이 정해진다
+      const ranks = seotdaShowdownRanks(eligible.map((i) => hands[i]!))
+      const best = Math.max(...ranks)
+      winners = eligible.filter((_, k) => ranks[k] === best)
+    } else {
+      for (const i of eligible.slice(1)) {
+        const c = compareHands(hands[i]!, hands[winners[0]]!)
+        if (c > 0) winners = [i]
+        else if (c === 0) winners.push(i)
+      }
     }
     const each = Math.floor(amount / winners.length)
     carry += amount % winners.length

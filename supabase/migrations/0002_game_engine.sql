@@ -26,6 +26,36 @@ language sql immutable as $$
   select case when c[1] = c[2] then array[2, c[1]] else array[1, c[1] + c[2]] end
 $$;
 
+-- 섯다 족보 점수 (높을수록 강함, 같으면 무승부). 카드 id 1~20, 월 = ceil(id / 2).
+--   1월 1=광 2=띠 / 2월 3=열끗 4=띠 / 3월 5=광 6=띠 / 4월 7=열끗 8=띠 / 5월 9,10 / 6월 11,12 / 7월 13=열끗 14=띠
+--   8월 15=광 16=열끗 / 9월 17=열끗 18=띠 / 10월 19=열끗 20=띠
+-- 38광땡 13000 > 18·13광땡 12000 > 땡 9000+월*10 (장땡 9100) > 알리 8000 > 독사 7900 > 구삥 7800 > 장삥 7700 > 장사 7600 > 세륙 7500 > 끗 5000+(0~9)
+create function card_game.seotda_rank(c int[]) returns int
+language sql immutable as $$
+  select case
+    when m1 = m2 then 9000 + m1 * 10
+    when lo = 5 and hi = 15 then 13000
+    when (lo = 1 and hi = 15) or (lo = 1 and hi = 5) then 12000
+    when least(m1, m2) = 1 and greatest(m1, m2) = 2 then 8000
+    when least(m1, m2) = 1 and greatest(m1, m2) = 4 then 7900
+    when least(m1, m2) = 1 and greatest(m1, m2) = 9 then 7800
+    when least(m1, m2) = 1 and greatest(m1, m2) = 10 then 7700
+    when least(m1, m2) = 4 and greatest(m1, m2) = 10 then 7600
+    when least(m1, m2) = 4 and greatest(m1, m2) = 6 then 7500
+    else 5000 + ((m1 + m2) % 10)
+  end
+  from (select (c[1] + 1) / 2 as m1, (c[2] + 1) / 2 as m2, least(c[1], c[2]) as lo, greatest(c[1], c[2]) as hi) t
+$$;
+
+-- 상대 패에 따라 힘이 생기는 특수 족보: 암행어사(4월 열끗 7, 7월 열끗 13), 땡잡이(3월 광 5, 7월 열끗 13)
+create function card_game.seotda_special(c int[]) returns text
+language sql immutable as $$
+  select case
+    when least(c[1], c[2]) = 7 and greatest(c[1], c[2]) = 13 then 'amhaeng'
+    when least(c[1], c[2]) = 5 and greatest(c[1], c[2]) = 13 then 'ttaengjabi'
+  end
+$$;
+
 -- ───────────── 매치 종료 ─────────────
 -- 승자 = 나가지 않은 사람 중 칩이 가장 많은 사람(동점이면 공동 승자). 수익 = 최종 칩 - 시작 칩.
 -- 기권자는 이득을 챙길 수 없다: 수익 = min(최종 칩 - 시작 칩, 0).
@@ -127,8 +157,10 @@ declare
   v_won int[] := array[0, 0, 0, 0, 0];
   v_seat int;
   v_json jsonb := '[]'::jsonb;
+  v_seotda boolean;
 begin
   select * into h from card_hands where id = p_hand;
+  v_seotda := exists (select 1 from card_matches m join card_room_seotda z on z.room_id = m.room_id where m.id = h.match_id);
 
   for v_level in
     select distinct committed from card_hand_seats where hand_id = p_hand and committed > 0 order by committed
@@ -139,11 +171,26 @@ begin
     if v_first then v_amount := v_amount + h.carry_in; v_first := false; end if;
     v_prev := v_level;
 
-    with e as (
-      select seat, card_game.card_rank(cards) as r
-        from card_hand_seats
-       where hand_id = p_hand and in_hand and not folded and committed >= v_level)
-    select array_agg(seat order by seat) into v_win_seats from e where r = (select max(r) from e);
+    if v_seotda then
+      -- 섯다: 암행어사는 이 팟에 18/13광땡이 있으면 12500, 땡잡이는 1~9땡이 있으면 9095 로 올라간다
+      with b as (
+        select seat, cards, card_game.seotda_rank(cards) as r
+          from card_hand_seats
+         where hand_id = p_hand and in_hand and not folded and committed >= v_level),
+      e as (
+        select seat,
+               case when card_game.seotda_special(cards) = 'amhaeng' and exists (select 1 from b where b.r = 12000) then 12500
+                    when card_game.seotda_special(cards) = 'ttaengjabi' and exists (select 1 from b where b.r between 9010 and 9090) then 9095
+                    else r end as r
+          from b)
+      select array_agg(seat order by seat) into v_win_seats from e where r = (select max(r) from e);
+    else
+      with e as (
+        select seat, card_game.card_rank(cards) as r
+          from card_hand_seats
+         where hand_id = p_hand and in_hand and not folded and committed >= v_level)
+      select array_agg(seat order by seat) into v_win_seats from e where r = (select max(r) from e);
+    end if;
 
     if v_win_seats is null then
       v_roll := v_amount;            -- 이 단계에 자격 있는 생존자가 없으면 다음 단계로 합친다 (방어 코드)
@@ -221,6 +268,7 @@ declare
   v_antes int;
   v_level int;
   v_hard boolean;
+  v_seotda boolean;
   d card_match_decks%rowtype;
   v_all int[];
   v_deal int[] := '{}';
@@ -241,14 +289,15 @@ begin
   v_lead := v_alive[((v_no - 1) % v_n) + 1];   -- 선은 판마다 한 칸씩 이동 (칩이 남은 사람 기준)
 
   select coalesce(o.hard, false) into v_hard from card_rooms r left join card_room_options o on o.room_id = r.id where r.id = m.room_id;
+  v_seotda := exists (select 1 from card_room_seotda z where z.room_id = m.room_id);
 
   if v_hard then
     -- 고난이도: 매치 내내 공용 덱을 이어서 쓴다. 셔플은 (1) 첫 판 (2) 남은 카드가 모자랄 때 (3) 셔플 예고 카드가 나온 판 다음에만.
     select * into d from card_match_decks where match_id = p_match for update;
     if not found then
-      -- 필요 세트 수 = 인원 × 2장 × 3라운드 ÷ 10 (올림)
+      -- 필요 세트 수 = 인원 × 2장 × 3라운드 ÷ 10 (올림). 섯다는 한 벌이 20장이라 세트 수를 2의 배수로 맞춘다.
       insert into card_match_decks (match_id, sets, deck, shuffle_no, fresh, marker_out)
-      values (p_match, ceil(v_n * 2 * 3 / 10.0)::int, '{}', 0, true, false) returning * into d;
+      values (p_match, case when v_seotda then 2 * ceil(v_n * 2 * 3 / 20.0)::int else ceil(v_n * 2 * 3 / 10.0)::int end, '{}', 0, true, false) returning * into d;
       v_reshuffle := true;
     else
       select count(*) into v_real from unnest(d.deck) x where x <> 0;
@@ -257,7 +306,7 @@ begin
     if v_reshuffle then
       -- 남은 카드와 버린 카드를 모두 합쳐(공개 없이) 다시 섞고, 아래에서 1라운드 분량 위치에 셔플 예고 카드(0)를 끼운다.
       select array_agg(n order by gen_random_uuid()) into v_all
-        from (select (i % 10) + 1 as n from generate_series(0, d.sets * 10 - 1) i) s;
+        from (select (i % (case when v_seotda then 20 else 10 end)) + 1 as n from generate_series(0, d.sets * 10 - 1) i) s;
       v_all := v_all[1 : cardinality(v_all) - 2 * v_n] || array[0] || v_all[cardinality(v_all) - 2 * v_n + 1 :];
       d.deck := v_all;
       d.shuffle_no := d.shuffle_no + 1;
@@ -278,7 +327,7 @@ begin
   else
     -- 일반: 판마다 1~10 두 벌을 CSPRNG(gen_random_uuid)로 새로 섞는다
     select array_agg(n order by gen_random_uuid()) into v_deck
-      from (select (i % 10) + 1 as n from generate_series(0, 19) i) s;
+      from (select (i % (case when v_seotda then 20 else 10 end)) + 1 as n from generate_series(0, 19) i) s;
   end if;
 
   -- 기본 판돈(앤티) = 매 판 1칩 고정. 칩이 없으면 참가하지 않는다.

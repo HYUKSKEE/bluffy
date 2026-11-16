@@ -43,7 +43,7 @@ const total = (g: PracticeGame) => {
 
 describe('연습 게임', () => {
   const combos: PracticeOpts[] = []
-  for (const mode of ['A', 'B'] as const) for (const bots of [1, 2, 3, 4]) for (const hard of [false, true]) combos.push({ mode, bots, hard })
+  for (const mode of ['A', 'B'] as const) for (const bots of [1, 2, 3, 4]) for (const hard of [false, true]) for (const rules of ['standard', 'seotda'] as const) combos.push({ mode, bots, hard, rules })
 
   it.each(combos)('끝까지 진행되고 칩 총량이 보존된다 (%o)', (opts) => {
     for (let seed = 1; seed <= 12; seed++) {
@@ -109,5 +109,17 @@ describe('연습 게임', () => {
     g = advance(g, rng)
     expect(g.handNo).toBe(2)
     expect(g.hand!.seats.reduce((a, s) => a + s.committed, 0)).toBe(3)
+  })
+})
+
+describe('섯다 연습', () => {
+  it('카드는 1~20 의 서로 다른 id (일반 덱 한 벌), 4~5명 고난이도는 40장', () => {
+    const g = newGame({ mode: 'A', bots: 4, hard: false, rules: 'seotda' }, seeded(2))
+    const all = g.cards.flatMap((c) => (c ? [...c] : []))
+    expect(all).toHaveLength(10)
+    expect(new Set(all).size).toBe(10)
+    expect(Math.max(...all)).toBeLessThanOrEqual(20)
+    expect(pileInfo(newGame({ mode: 'A', bots: 1, hard: true, rules: 'seotda' }, seeded(2)))).toMatchObject({ total: 20, remaining: 16 })
+    expect(pileInfo(newGame({ mode: 'A', bots: 3, hard: true, rules: 'seotda' }, seeded(2)))).toMatchObject({ total: 40, remaining: 32 })
   })
 })

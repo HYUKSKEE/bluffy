@@ -86,7 +86,8 @@ begin
     'match', jsonb_build_object(
       'id', m.id, 'room_id', m.room_id, 'room_status', r.status, 'mode', r.mode, 'status', m.status,
       'hand_no', m.hand_no, 'max_hands', m.max_hands, 'start_chips', m.start_chips, 'carry', m.carry,
-      'host_player_id', m.host_player_id, 'end_reason', m.end_reason, 'next_hand_at', m.next_hand_at),
+      'host_player_id', m.host_player_id, 'end_reason', m.end_reason, 'next_hand_at', m.next_hand_at,
+      'seotda', exists (select 1 from card_room_seotda z where z.room_id = m.room_id)),
     'seats', v_seats,
     'hand', v_hand,
     'actions', v_actions,

@@ -29,6 +29,22 @@ begin
   return v_res;
 end $$;
 
+-- 섯다 룰 켜기/끄기 (관리 토큰이 있는 방 생성자만, 아직 대결이 한 번도 만들어지지 않은 방에서만)
+create function public.card_set_room_seotda(p_room_id uuid, p_admin_token text, p_on boolean)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
+  if not public.card_verify_admin(p_room_id, p_admin_token) then raise exception 'FORBIDDEN'; end if;
+  if exists (select 1 from card_matches where room_id = p_room_id) then raise exception 'ROOM_IN_USE'; end if;
+  if coalesce(p_on, false) then
+    insert into card_room_seotda (room_id) values (p_room_id) on conflict do nothing;
+  else
+    delete from card_room_seotda where room_id = p_room_id;
+  end if;
+  perform card_game.notify('card_room:' || p_room_id);
+  return jsonb_build_object('seotda', coalesce(p_on, false));
+end $$;
+
 -- 방을 목록에 공개/비공개로 바꾼다 (관리 토큰이 있는 방 생성자만)
 create function public.card_set_room_public(p_room_id uuid, p_admin_token text, p_public boolean)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
@@ -51,12 +67,13 @@ begin
   if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object(
-             'id', t.id, 'title', t.title, 'mode', t.mode, 'hard', t.hard, 'created_at', t.created_at,
+             'id', t.id, 'title', t.title, 'mode', t.mode, 'hard', t.hard, 'seotda', t.seotda, 'created_at', t.created_at,
              'participants', t.participants, 'active_matches', t.active_matches, 'waiting_tables', t.waiting_tables)
            order by t.waiting_tables desc, t.active_matches desc, t.created_at desc)
       from (
         select r.id, r.title, r.mode, r.created_at,
                coalesce((select o.hard from card_room_options o where o.room_id = r.id), false) as hard,
+               exists (select 1 from card_room_seotda z where z.room_id = r.id) as seotda,
                (select count(*) from card_players p where p.room_id = r.id) as participants,
                (select count(*) from card_matches m where m.room_id = r.id and m.status = 'playing') as active_matches,
                (select count(*) from card_matches m where m.room_id = r.id and m.status = 'waiting') as waiting_tables
@@ -83,7 +100,8 @@ begin
     'room', jsonb_build_object('id', r.id, 'title', r.title, 'mode', r.mode, 'status', r.status,
                                'created_at', r.created_at, 'closed_at', r.closed_at,
                                'hard', coalesce((select o.hard from card_room_options o where o.room_id = r.id), false),
-                               'public', exists (select 1 from card_public_rooms pr where pr.room_id = r.id)),
+                               'public', exists (select 1 from card_public_rooms pr where pr.room_id = r.id),
+                               'seotda', exists (select 1 from card_room_seotda z where z.room_id = r.id)),
     'participants', (select count(*) from card_players where room_id = r.id),
     'active_matches', (select count(*) from card_matches where room_id = r.id and status = 'playing'),
     'waiting_tables', (select count(*) from card_matches where room_id = r.id and status = 'waiting'),
@@ -429,7 +447,8 @@ begin
     'match', jsonb_build_object(
       'id', m.id, 'room_id', m.room_id, 'room_status', r.status, 'mode', r.mode, 'status', m.status,
       'hand_no', m.hand_no, 'max_hands', m.max_hands, 'start_chips', m.start_chips, 'carry', m.carry,
-      'host_player_id', m.host_player_id, 'end_reason', m.end_reason, 'next_hand_at', m.next_hand_at),
+      'host_player_id', m.host_player_id, 'end_reason', m.end_reason, 'next_hand_at', m.next_hand_at,
+      'seotda', exists (select 1 from card_room_seotda z where z.room_id = m.room_id)),
     'seats', v_seats,
     'hand', v_hand,
     'actions', v_actions,
@@ -706,6 +725,7 @@ revoke execute on function
   public.card_create_room(text, text),
   public.card_create_room_ex(text, text, boolean),
   public.card_set_room_public(uuid, text, boolean),
+  public.card_set_room_seotda(uuid, text, boolean),
   public.card_list_open_rooms(),
   public.card_rename_player(uuid, text),
   public.card_send_emote(uuid, text),
@@ -731,6 +751,7 @@ grant execute on function
   public.card_create_room(text, text),
   public.card_create_room_ex(text, text, boolean),
   public.card_set_room_public(uuid, text, boolean),
+  public.card_set_room_seotda(uuid, text, boolean),
   public.card_list_open_rooms(),
   public.card_send_emote(uuid, text),
   public.card_rename_player(uuid, text),

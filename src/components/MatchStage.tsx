@@ -2,7 +2,7 @@ import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 
 import { Canvas, useFrame } from '@react-three/fiber'
 import { RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
-import { backTexture, frontTexture, labelTexture } from './cardTextures'
+import { backTexture, frontTexture, hwatuTexture, labelTexture } from './cardTextures'
 
 export interface StageCard {
   /** 공개된 값. null 이면 뒷면(값은 클라이언트에 존재하지 않음) */
@@ -32,6 +32,8 @@ export interface StageProps {
   pot: number
   /** 같은 판 안에서는 유지, 새 판이면 바뀌는 키 → 카드가 새로 "통" 하고 나타난다 */
   handKey: string
+  /** 섯다: 카드 앞면을 숫자 대신 화투 그림으로 그린다 (value 는 카드 id 1~20) */
+  hwatu?: boolean
 }
 
 /** 폰트가 로드되면 텍스처를 다시 그리기 위한 키 */
@@ -61,7 +63,7 @@ function oppSlots(n: number): { x: number; y: number; s: number }[] {
 }
 
 function Card3D({
-  card, x, y, scale, tint, glow, hop, dim, delay, tilt,
+  card, x, y, scale, tint, glow, hop, dim, delay, tilt, hwatu,
 }: {
   card: StageCard
   x: number
@@ -73,6 +75,7 @@ function Card3D({
   dim: boolean
   delay: number
   tilt: number
+  hwatu?: boolean
 }) {
   const fontKey = useFontKey()
   const group = useRef<THREE.Group>(null)
@@ -90,8 +93,8 @@ function Card3D({
   }, [hop])
 
   const front = useMemo(
-    () => (card.value !== null ? frontTexture(card.value, card.tag ?? null, fontKey) : null),
-    [card.value, card.tag, fontKey],
+    () => (card.value === null ? null : hwatu ? hwatuTexture(card.value, card.tag ?? null, fontKey) : frontTexture(card.value, card.tag ?? null, fontKey)),
+    [card.value, card.tag, fontKey, hwatu],
   )
   const back = useMemo(() => backTexture(Boolean(card.forehead), fontKey), [card.forehead, fontKey])
 
@@ -182,7 +185,7 @@ function PotStack({ pot }: { pot: number }) {
   )
 }
 
-function Scene({ opps, me, pot, handKey }: StageProps) {
+function Scene({ opps, me, pot, handKey, hwatu }: StageProps) {
   const slots = oppSlots(opps.length)
   const hasResult = opps.some((o) => o.win) || me.win
   return (
@@ -200,7 +203,7 @@ function Scene({ opps, me, pot, handKey }: StageProps) {
             {o.cards.map((c, i) => (
               <Card3D
                 key={i} card={c} x={sl.x + (i - 0.5) * gap * 2} y={sl.y} scale={sl.s} tint="red"
-                glow={o.win} hop={o.win} dim={o.folded} delay={0.05 * k + i * 0.1} tilt={-0.12}
+                glow={o.win} hop={o.win} dim={o.folded} delay={0.05 * k + i * 0.1} tilt={-0.12} hwatu={hwatu}
               />
             ))}
             <NameTag text={o.label} x={sl.x} y={sl.y + (CARD_H * sl.s) / 2 + 0.3} wide={opps.length >= 3 ? 1.7 : 2.0}
@@ -215,7 +218,7 @@ function Scene({ opps, me, pot, handKey }: StageProps) {
         {me.cards.map((c, i) => (
           <Card3D
             key={i} card={c} x={(i - 0.5) * (CARD_W + 0.34)} y={-2.5} scale={0.92} tint="blue"
-            glow={me.win} hop={me.win} dim={me.folded && !hasResult} delay={0.3 + i * 0.12} tilt={c.forehead ? -0.32 : -0.12}
+            glow={me.win} hop={me.win} dim={me.folded && !hasResult} delay={0.3 + i * 0.12} tilt={c.forehead ? -0.32 : -0.12} hwatu={hwatu}
           />
         ))}
       </group>

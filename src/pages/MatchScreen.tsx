@@ -1,7 +1,7 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { api, friendly, isConnectionError, type MatchState, type SeatInfo, type VisibleHand } from '../lib/api'
 import { useMatch, useTicker } from '../lib/hooks'
-import { legalFor, TURN_SECONDS } from '../game/rules'
+import { handName, legalFor, TURN_SECONDS } from '../game/rules'
 import { Chips, ErrorScreen, Modal, PileBadge, RulesModal, Spinner } from '../components/ui'
 import type { StageCard, StageOpp } from '../components/MatchStage'
 import TableWaiting from './TableWaiting'
@@ -89,12 +89,25 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
   const vis = cards && h && cards.hand_id === h.id ? cards : null
   const winnerSeats = new Set(res?.winners.map((w) => w.seat) ?? [])
 
+  // 섯다: 패가 보이는 사람의 족보 이름 (판이 끝나 공개됐을 때 상대 이름도 표시)
+  const cardsOf = (seat: number): [number, number] | null => {
+    const c = vis?.seats.find((x) => x.seat === seat)?.cards
+    return c && c[0] !== null && c[1] !== null ? [c[0], c[1]] : null
+  }
+  const seotdaName = (seat: number) => {
+    if (!m.seotda || !vis?.revealed) return ''
+    const c = cardsOf(seat)
+    return c ? ` · ${handName(c, 'seotda')}` : ''
+  }
+  const myCardsKnown = cardsOf(mySeat)
+  const myHandName = m.seotda && me.in_hand && myCardsKnown ? handName(myCardsKnown, 'seotda') : null
+
   const stageOpps: StageOpp[] = opps.map((o) => {
     const out = !o.in_hand || o.left
     const tail = o.left ? ' 나감' : !o.in_hand ? ' 탈락' : o.folded ? ' 다이' : ''
     return {
       id: o.player_id,
-      label: `${short(o.nickname)} · ${o.chips}${tail}`,
+      label: `${short(o.nickname)} · ${o.chips}${tail}${seotdaName(o.seat)}`,
       cards: out ? [] : toStageCards(vis, o.seat, m.mode, false),
       folded: o.folded,
       out,
@@ -141,14 +154,14 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
   return (
     <main className="page flex min-h-[100dvh] flex-col pb-[188px] pt-3">
       <header className="flex items-center justify-between gap-2">
-        <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setLeaving(true)} disabled={over}>나가기</button>
-        <div className="text-center text-sm text-muted">
+        <button className="candy candy-dark candy-sm !min-h-[40px] shrink-0 whitespace-nowrap !px-3 !py-2 text-sm" onClick={() => setLeaving(true)} disabled={over}>나가기</button>
+        <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-center text-xs text-muted">
           <span className={`tag ${m.mode === 'B' ? 'tag-red' : ''}`}>{m.mode} 모드</span>
           <span className="ml-2">{Math.max(1, m.hand_no)} / {m.max_hands} 판 · {state.seats.filter((s) => !s.left).length}명</span>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex shrink-0 gap-1.5">
           <SoundButton />
-          <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
+          <button className="candy candy-dark candy-sm !min-h-[40px] shrink-0 whitespace-nowrap !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
         </div>
       </header>
 
@@ -184,6 +197,7 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
             me={{ cards: myCards, win: finishedHand && winnerSeats.has(mySeat), folded: me.folded, active: myTurn, label: me.nickname, out: !me.in_hand }}
             pot={h?.pot ?? 0}
             handKey={`${h?.id ?? 'none'}`}
+            hwatu={m.seotda}
           />
         </Suspense>
 
@@ -222,6 +236,7 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
         <div className="flex items-center gap-2">
           <span className="inline-block h-3 w-3 rounded-full bg-blue" />
           <b className="font-normal">{me.nickname} (나)</b>
+          {myHandName && <span className="tag">{myHandName}</span>}
           {myTurn && <span className="tag animate-bounceY">내 차례</span>}
           {me.folded && <span className="tag tag-red">다이</span>}
         </div>

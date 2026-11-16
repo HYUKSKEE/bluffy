@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type OpenRoom } from '../lib/api'
-import { Logo, RulesBody, RulesModal } from '../components/ui'
+import { CreditsModal, Logo, RulesBody, RulesModal } from '../components/ui'
 import { SoundButton } from '../components/SoundButton'
 
 export default function Home() {
   const [rules, setRules] = useState(false)
   const [rooms, setRooms] = useState<OpenRoom[]>([])
+  const [credits, setCredits] = useState(false)
 
   // 열려 있는 공개 방 목록 (실패해도 홈은 그대로 쓴다)
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function Home() {
                     <span className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted">
                       <span className={`tag ${r.mode === 'B' ? 'tag-red' : ''}`}>{r.mode} 모드</span>
                       {r.hard && <span className="tag tag-red">고난이도</span>}
+                      {r.seotda && <span className="tag tag-red">섯다</span>}
                       {r.participants}명 · 대결 {r.active_matches}건{r.waiting_tables > 0 ? ` · 대기 ${r.waiting_tables}` : ''}
                     </span>
                   </span>
@@ -76,6 +78,9 @@ export default function Home() {
 
       <footer className="pb-safe text-center text-xs leading-relaxed text-muted">
         칩은 가상의 무료 포인트예요. 현금·경품·충전·환전·거래 기능은 없어요.
+        <br />
+        <button className="mt-1 underline underline-offset-4" onClick={() => setCredits(true)}>이미지 저작자 표시</button>
+        <CreditsModal open={credits} onClose={() => setCredits(false)} />
       </footer>
 
       {rules && (

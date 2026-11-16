@@ -4,7 +4,7 @@ import {
   act, advance, botAction, newGame, pileInfo, standings, turnSeat,
   type LogItem, type PracticeGame, type PracticeMode, type PracticeOpts,
 } from '../game/practice'
-import { legalActions, MAX_HANDS } from '../game/rules'
+import { handName, legalActions, MAX_HANDS } from '../game/rules'
 import { playSfx } from '../lib/sound'
 import { Chips, Logo, Modal, PileBadge, RulesModal, Spinner } from '../components/ui'
 import { SoundButton } from '../components/SoundButton'
@@ -23,6 +23,7 @@ export default function Practice({ onExit }: { onExit?: () => void } = {}) {
     mode: q.get('mode') === 'B' ? 'B' : 'A',
     bots: Math.min(4, Math.max(1, Number(q.get('bots')) || 2)),
     hard: q.get('hard') === '1',
+    rules: q.get('rules') === 'seotda' ? 'seotda' : 'standard',
   }))
   const [g, setG] = useState<PracticeGame | null>(() => (q.get('start') === '1' ? newGame(opts) : null))
   const [rules, setRules] = useState(false)
@@ -91,6 +92,14 @@ function Setup({ opts, setOpts, onStart, onExit }: { opts: PracticeOpts; setOpts
           <p className="text-sm text-muted">덱을 섞지 않고 이어서 써요. 나온 카드를 기억하는 카운팅 연습!</p>
         </label>
 
+        <label className={`jelly-panel block cursor-pointer !rounded-2xl p-3 ${opts.rules === 'seotda' ? 'ring-4 ring-red' : 'opacity-80'}`}>
+          <div className="flex items-center justify-between">
+            <b className="font-normal text-red">🎴 섯다 룰 · 화투</b>
+            <input type="checkbox" className="h-6 w-6 accent-[#ff3b5c]" checked={opts.rules === 'seotda'} onChange={(e) => setOpts({ ...opts, rules: e.target.checked ? 'seotda' : 'standard' })} aria-label="섯다 룰" />
+          </div>
+          <p className="text-sm text-muted">화투 그림 카드와 섯다 족보(광땡·땡·알리·독사·끗·땡잡이·암행어사)로 연습해요.</p>
+        </label>
+
         <button className="candy w-full text-xl" onClick={onStart}>연습 시작</button>
         <ExitLink onExit={onExit} className="text-center text-muted underline underline-offset-4">{onExit ? '방으로 돌아가기' : '처음으로'}</ExitLink>
       </div>
@@ -121,6 +130,7 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
   const chipsOf = (i: number) => (betting ? hand.seats[i].chips : g.chips[i])
   const winnerSeats = new Set(g.result?.winners.map((w) => w.seat) ?? [])
   const mode = g.opts.mode
+  const seotda = g.opts.rules === 'seotda'
 
   // ── 컴퓨터 차례: 잠깐 생각한 뒤 행동 ──
   useEffect(() => {
@@ -177,7 +187,7 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
         const tail = out ? ' 탈락' : s.folded ? ' 다이' : ''
         return {
           id: String(seat),
-          label: `${short(g.names[seat])} · ${chipsOf(seat)}${tail}`,
+          label: `${short(g.names[seat])} · ${chipsOf(seat)}${tail}${seotda && revealed && !out && g.cards[seat] ? ` · ${handName(g.cards[seat]!, 'seotda')}` : ''}`,
           cards: out ? [] : toStage(seat, false),
           folded: s.folded,
           out,
@@ -214,15 +224,16 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
   return (
     <main className="page flex min-h-[100dvh] flex-col pb-[188px] pt-3">
       <header className="flex items-center justify-between gap-2">
-        <ExitLink onExit={onExit} className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm">나가기</ExitLink>
-        <div className="text-center text-sm text-muted">
+        <ExitLink onExit={onExit} className="candy candy-dark candy-sm !min-h-[40px] shrink-0 whitespace-nowrap !px-3 !py-2 text-sm">나가기</ExitLink>
+        <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-center text-xs text-muted">
           <span className="tag">연습</span>
           <span className={`tag ml-1 ${mode === 'B' ? 'tag-red' : ''}`}>{mode} 모드</span>
+          {seotda && <span className="tag tag-red ml-1">섯다</span>}
           <span className="ml-2">{Math.max(1, g.handNo)} / {MAX_HANDS} 판</span>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex shrink-0 gap-1.5">
           <SoundButton />
-          <button className="candy candy-dark candy-sm !min-h-[40px] !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
+          <button className="candy candy-dark candy-sm !min-h-[40px] shrink-0 whitespace-nowrap !px-3 !py-2 text-sm" onClick={() => setRules(true)}>규칙</button>
         </div>
       </header>
       <RulesModal forceOpen={rules} onClose={() => setRules(false)} />
@@ -235,6 +246,7 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
             me={{ cards: toStage(0, true), win: finished && winnerSeats.has(0), folded: me.folded, active: myTurn, label: `나 · ${chipsOf(0)}`, out: !me.inHand }}
             pot={pot}
             handKey={`${g.handNo}`}
+            hwatu={seotda}
           />
         </Suspense>
         <div className="pointer-events-none absolute bottom-[38%] left-1/2 -translate-x-1/2">
@@ -266,6 +278,7 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
         <div className="flex items-center gap-2">
           <span className="inline-block h-3 w-3 rounded-full bg-blue" />
           <b className="font-normal">나</b>
+          {seotda && me.inHand && g.cards[0] && (mode === 'A' || revealed) && <span className="tag">{handName(g.cards[0], 'seotda')}</span>}
           {myTurn && <span className="tag animate-bounceY">내 차례</span>}
           {me.folded && <span className="tag tag-red">다이</span>}
         </div>

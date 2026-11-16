@@ -134,6 +134,12 @@ create table public.card_match_decks (
   marker_out boolean not null default false      -- 이번 판에 셔플 예고 카드가 나왔는가 (이번 판이 끝나면 셔플)
 );
 
+-- ───────────── 섯다 룰 ─────────────
+-- 행이 있으면 그 방은 섯다 룰(화투 20장, 광땡·땡·특수 패·끗)로 진행한다. 없으면 일반 룰.
+create table public.card_room_seotda (
+  room_id uuid primary key references public.card_rooms(id) on delete cascade
+);
+
 -- ───────────── 공개 방 목록 ─────────────
 -- 방 목록(홈 화면)에 보이도록 공개한 방. 행이 있으면 공개, 없으면 링크를 아는 사람만 들어올 수 있는 비공개.
 create table public.card_public_rooms (
@@ -168,6 +174,7 @@ alter table public.card_room_options  enable row level security;
 alter table public.card_match_decks   enable row level security;
 alter table public.card_chat_messages  enable row level security;
 alter table public.card_public_rooms   enable row level security;
+alter table public.card_room_seotda    enable row level security;
 
 -- Supabase 는 새 테이블에 anon/authenticated 권한을 기본 부여한다 → 이 마이그레이션이 만든 card_ 테이블만 회수.
 -- (기존 객체(다른 게임의 테이블/함수/시퀀스)는 절대 건드리지 않는다. identity 시퀀스는 테이블 권한을 따른다.)
@@ -175,10 +182,10 @@ alter table public.card_public_rooms   enable row level security;
 revoke all on
   public.card_rooms, public.card_players, public.card_matches, public.card_match_players,
   public.card_hands, public.card_hand_seats, public.card_actions,
-  public.card_room_options, public.card_match_decks, public.card_chat_messages, public.card_public_rooms
+  public.card_room_options, public.card_match_decks, public.card_chat_messages, public.card_public_rooms, public.card_room_seotda
 from public;
 revoke all on
   public.card_rooms, public.card_players, public.card_matches, public.card_match_players,
   public.card_hands, public.card_hand_seats, public.card_actions,
-  public.card_room_options, public.card_match_decks, public.card_chat_messages, public.card_public_rooms
+  public.card_room_options, public.card_match_decks, public.card_chat_messages, public.card_public_rooms, public.card_room_seotda
 from anon, authenticated;

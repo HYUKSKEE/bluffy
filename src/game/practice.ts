@@ -4,9 +4,9 @@
  * 0번 좌석 = 나, 나머지는 컴퓨터.
  */
 import {
-  applyAction, buildDeck, evaluate, leadSeat, legalActions, matchOutcome, matchWinners, potOf, settleFold, settleShowdown,
+  applyAction, buildDeck, handStrength, leadSeat, legalActions, matchOutcome, matchWinners, potOf, settleFold, settleShowdown,
   shuffle, startHand, toCall, MAX_HANDS, START_CHIPS,
-  type Action, type Cards, type HandEnd, type HandState, type LegalActions,
+  type Action, type Cards, type HandEnd, type HandState, type LegalActions, type RuleSet,
 } from './rules'
 
 export type PracticeMode = 'A' | 'B'
@@ -18,6 +18,8 @@ export interface PracticeOpts {
   bots: number
   /** 고난이도: 덱을 이어서 쓰는 카운팅 게임 */
   hard: boolean
+  /** 섯다 룰(화투 20장·광땡/땡/특수 패/끗). 없으면 일반 룰 */
+  rules?: RuleSet
 }
 
 /** 고난이도 공용 덱 (0 = 셔플 예고 카드). 서버(card_match_decks)와 같은 규칙. */
@@ -88,13 +90,14 @@ export function newGame(opts: PracticeOpts, rng: Rng = Math.random): PracticeGam
 }
 
 /** 고난이도 덱 배분: 이어서 쓰고, 모자라거나 예고 카드가 나온 다음 판에 전부 모아 다시 섞는다. */
-function dealHard(prev: PracticeDeck | null, players: number, rng: Rng): { deck: PracticeDeck; dealt: number[] } {
+function dealHard(prev: PracticeDeck | null, players: number, rng: Rng, rules: RuleSet): { deck: PracticeDeck; dealt: number[] } {
+  const per = rules === 'seotda' ? 20 : 10 // 한 벌의 장수
   const d: PracticeDeck = prev
     ? { ...prev, deck: prev.deck.slice() }
-    : { sets: Math.ceil((players * 2 * 3) / 10), deck: [], shuffleNo: 0, fresh: true, markerOut: false }
+    : { sets: Math.ceil((players * 2 * 3) / per) * (per / 10), deck: [], shuffleNo: 0, fresh: true, markerOut: false }
   const real = d.deck.filter((x) => x !== 0).length
   if (!prev || d.markerOut || real < 2 * players) {
-    const all = shuffle(Array.from({ length: d.sets * 10 }, (_, i) => (i % 10) + 1), rng)
+    const all = shuffle(Array.from({ length: d.sets * 10 }, (_, i) => (i % per) + 1), rng)
     const k = all.length - 2 * players // 아래에서 1라운드 분량 위치에 셔플 예고 카드
     d.deck = [...all.slice(0, k), 0, ...all.slice(k)]
     d.shuffleNo += 1
@@ -121,11 +124,11 @@ export function startNextHand(g: PracticeGame, rng: Rng = Math.random): Practice
   let deck = g.deck
   let dealt: number[]
   if (g.opts.hard) {
-    const r = dealHard(g.deck, alive.length, rng)
+    const r = dealHard(g.deck, alive.length, rng, g.opts.rules ?? 'standard')
     deck = r.deck
     dealt = r.dealt
   } else {
-    dealt = shuffle(buildDeck(), rng).slice(0, alive.length * 2)
+    dealt = shuffle(buildDeck(g.opts.rules ?? 'standard'), rng).slice(0, alive.length * 2)
   }
   const cards: (Cards | null)[] = Array(g.n).fill(null)
   const openIdx: (1 | 2)[] = Array(g.n).fill(1)
@@ -140,7 +143,7 @@ export function startNextHand(g: PracticeGame, rng: Rng = Math.random): Practice
 /** 판 정산 + 매치 종료 판정 */
 function settle(g: PracticeGame, end: HandEnd): PracticeGame {
   const hand = g.hand!
-  const s = end.type === 'fold' ? settleFold(hand, end.winner) : settleShowdown(hand, hand.seats.map((x, i) => (x.inHand && !x.folded ? g.cards[i] : null)))
+  const s = end.type === 'fold' ? settleFold(hand, end.winner) : settleShowdown(hand, hand.seats.map((x, i) => (x.inHand && !x.folded ? g.cards[i] : null)), g.opts.rules ?? 'standard')
   const chips = hand.seats.map((x, i) => x.chips + s.payouts[i])
   const result: PracticeResult = {
     reason: end.type,
@@ -212,16 +215,17 @@ function confidence(g: PracticeGame, seat: number, rng: Rng): number {
   const opponents = alive.filter((i) => i !== seat)
   let s: number
   if (g.opts.mode === 'A') {
-    const mine = g.cards[seat]!
-    const e = evaluate(mine)
-    s = e.category === 'pair' ? 0.72 + (e.value / 10) * 0.28 : 0.05 + ((e.value - 3) / 16) * 0.6
-    // 상대의 공개 카드가 높으면 조금 불안하다
-    const high = opponents.filter((o) => g.cards[o]![g.openIdx[o] - 1] >= 9).length
+    s = handStrength(g.cards[seat]!, g.opts.rules ?? 'standard')
+    // 상대의 공개 카드가 높으면 조금 불안하다 (일반: 9 이상 / 섯다: 7~10월 카드)
+    const lim = (g.opts.rules ?? 'standard') === 'seotda' ? 13 : 9
+    const high = opponents.filter((o) => g.cards[o]![g.openIdx[o] - 1] >= lim).length
     s -= 0.03 * high
   } else {
     // B 모드: 내 카드는 모른다. 상대 카드에서 얻는 정보만 쓴다 (상대가 페어면 내가 높은 카드를 가졌을 확률이 줄어든다)
-    const pairs = opponents.filter((o) => g.cards[o]![0] === g.cards[o]![1]).length
-    const avg = opponents.reduce((a, o) => a + (g.cards[o]![0] + g.cards[o]![1]), 0) / Math.max(1, opponents.length)
+    const seotda = (g.opts.rules ?? 'standard') === 'seotda'
+    const num = (v: number) => (seotda ? Math.ceil(v / 2) : v) // 카드의 숫자(월)
+    const pairs = opponents.filter((o) => num(g.cards[o]![0]) === num(g.cards[o]![1])).length
+    const avg = opponents.reduce((a, o) => a + (num(g.cards[o]![0]) + num(g.cards[o]![1])), 0) / Math.max(1, opponents.length)
     s = 0.5 - 0.08 * pairs + (11 - avg / 2) * 0.012
   }
   s += (rng() - 0.5) * 0.2

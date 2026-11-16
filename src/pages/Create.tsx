@@ -15,6 +15,8 @@ export default function Create() {
   const [mode, setMode] = useState<Mode>('A')
   const [hard, setHard] = useState(false)
   const [isPublic, setIsPublic] = useState(true)
+  const [seotda, setSeotda] = useState(false)
+  const [warn, setWarn] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [conn, setConn] = useState(false)
@@ -28,6 +30,7 @@ export default function Create() {
       const r = await api.createRoom(title.trim(), mode, hard)
       saveAdminToken(r.room_id, r.admin_token)
       if (isPublic) await api.setRoomPublic(r.room_id, r.admin_token, true).catch(() => undefined) // 실패해도 방은 만들어진다(비공개)
+      if (seotda) await api.setRoomSeotda(r.room_id, r.admin_token, true).catch((e3) => setWarn(`섯다 룰을 켜지 못했어요(일반 룰로 진행돼요): ${friendly(e3)}`))
       setMade({ roomId: r.room_id, token: r.admin_token })
     } catch (e2) {
       if (isConnectionError(e2)) setConn(true)
@@ -52,6 +55,7 @@ export default function Create() {
         <div className="jelly-panel animate-pop mt-6 p-5">
           <h1 className="mb-1 text-2xl">방이 만들어졌어요!</h1>
           <p className="mb-5 text-muted">공유 링크를 친구들에게 보내세요.</p>
+          {warn && <p role="alert" className="mb-4 rounded-2xl bg-red/20 px-4 py-3 text-sm text-red-soft">{warn}</p>}
 
           <label className="mb-1 block text-sm text-blue-soft">공유 링크 (참가자용)</label>
           <input className="field mb-2 text-sm" readOnly value={share} onFocus={(e) => e.currentTarget.select()} />
@@ -113,6 +117,15 @@ export default function Create() {
           </div>
           <p className="mb-1 text-sm text-ink">쓴 카드를 기억하는 카운팅 게임</p>
           <p className="text-sm leading-relaxed text-muted">덱을 매 판 섞지 않고 이어서 써요. 쓴 카드는 다시 볼 수 없고 남은 장수만 보여요. 덱이 바닥나기 전 &quot;셔플 예고 카드&quot;가 나오면 그 판 뒤에 새로 섞어요.</p>
+        </label>
+
+        <label className={`jelly-panel block cursor-pointer p-4 ${seotda ? 'ring-4 ring-red -translate-y-1' : 'opacity-80'}`}>
+          <div className="flex items-center justify-between">
+            <b className="text-xl font-normal text-red">🎴 섯다 룰 · 화투</b>
+            <input type="checkbox" className="h-6 w-6 accent-[#ff3b5c]" checked={seotda} onChange={(e) => setSeotda(e.target.checked)} aria-label="섯다 룰" />
+          </div>
+          <p className="mb-1 text-sm text-ink">화투 20장, 광땡·땡·알리·독사·끗</p>
+          <p className="text-sm leading-relaxed text-muted">카드가 화투 그림으로 바뀌고 족보가 섯다 규칙이 돼요. 땡잡이·암행어사도 있어요. A/B 모드, 고난이도와 함께 쓸 수 있어요.</p>
         </label>
 
         <label className="jelly-panel flex cursor-pointer items-center justify-between gap-3 !rounded-2xl p-4">

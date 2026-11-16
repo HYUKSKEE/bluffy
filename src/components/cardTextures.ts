@@ -84,6 +84,68 @@ export function frontTexture(n: number, tag: string | null, fontKey: number): TH
   return t
 }
 
+/**
+ * 섯다(화투) 카드 앞면: public/hwatu/NN.png (NN = 카드 id 01~20, CC BY-SA 4.0, 저작자 표시는 앱의 "이미지 저작자 표시").
+ * 이미지는 필요할 때 불러오며, 불러오기 전에는 월 숫자만 있는 임시 면을 보여 준다.
+ */
+const hwatuImages = new Map<number, HTMLImageElement>()
+export function hwatuTexture(id: number, tag: string | null, fontKey: number): THREE.CanvasTexture {
+  const key = `h${id}|${tag ?? ''}|${fontKey}`
+  const hit = cache.get(key)
+  if (hit) return hit
+  const c = document.createElement('canvas')
+  c.width = W
+  c.height = H
+  const ctx = c.getContext('2d')!
+  const month = Math.ceil(id / 2)
+  const t = finish(c)
+
+  const draw = (img: HTMLImageElement | null) => {
+    ctx.clearRect(0, 0, W, H)
+    ctx.fillStyle = '#fffdf6'
+    rr(ctx, 0, 0, W, H, 34)
+    ctx.fill()
+    if (img && img.complete && img.naturalWidth > 0) {
+      const h = H - 20
+      const w = (img.naturalWidth / img.naturalHeight) * h
+      ctx.save()
+      rr(ctx, (W - w) / 2, 10, w, h, 14)
+      ctx.clip()
+      ctx.drawImage(img, (W - w) / 2, 10, w, h)
+      ctx.restore()
+    } else {
+      ctx.fillStyle = '#d4183c'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.font = `150px ${FONT}`
+      ctx.fillText(`${month}월`, W / 2, H / 2)
+    }
+    if (tag) {
+      ctx.fillStyle = '#1f6fe0'
+      rr(ctx, W / 2 - 52, H - 62, 104, 38, 19)
+      ctx.fill()
+      ctx.fillStyle = '#fff'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.font = `26px ${FONT}`
+      ctx.fillText(tag, W / 2, H - 42)
+    }
+    t.needsUpdate = true
+  }
+
+  let img = hwatuImages.get(id)
+  if (!img) {
+    img = new Image()
+    img.decoding = 'async'
+    img.src = `/hwatu/${String(id).padStart(2, '0')}.png`
+    hwatuImages.set(id, img)
+  }
+  draw(img)
+  if (!img.complete) img.addEventListener('load', () => draw(img!), { once: true })
+  cache.set(key, t)
+  return t
+}
+
 export function backTexture(question: boolean, fontKey: number): THREE.CanvasTexture {
   const key = `b${question ? 'q' : ''}|${fontKey}`
   const hit = cache.get(key)

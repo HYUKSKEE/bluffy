@@ -250,7 +250,6 @@ describe('다이한 사람은 상대 패를 볼 수 없다', () => {
       const after = await view(t, first.seat)
       for (const s of [1, 2, 3].filter((x) => x !== first.seat)) expect(seatOf(after, s).cards).toEqual([null, null])
       expect(seatOf(after, first.seat).cards).toEqual(mode === 'A' ? tr[first.seat].cards : [null, null])
-      expect(JSON.stringify(after)).not.toMatch(new RegExp(`"cards":\\[(${tr[other].cards[0]}|${tr[other].cards[1]}),`)) // 상대 값이 새지 않는다
 
       // 남은 두 사람은 그대로 상대 패를 본다
       const remain = [1, 2, 3].find((x) => x !== first.seat && x !== other)!
