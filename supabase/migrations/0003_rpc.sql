@@ -391,9 +391,9 @@ begin
 
   for hs in select * from card_hand_seats where hand_id = h.id order by seat loop
     if hs.seat = v_my_seat then
-      -- 내 카드: 판이 끝나면 공개, 진행 중에는 모드 규칙 (A: 보임, B: 안 보임)
+      -- 내 카드: 판이 끝나면 공개, 진행 중에는 모드 규칙 (A·C: 보임, B: 안 보임)
       v_cards := case when h.revealed and hs.in_hand then hs.cards
-                      when v_mode = 'A' then hs.cards
+                      when v_mode in ('A', 'C') then hs.cards
                       else array[null, null]::int[] end;
     elsif v_out then
       v_cards := array[null, null]::int[];                              -- 다이한 사람: 상대 패는 끝까지 안 보인다
@@ -402,7 +402,7 @@ begin
     elsif h.revealed and hs.in_hand then
       v_cards := hs.cards;                                              -- 판이 끝나면 끝까지 남은 사람들의 패를 서로 공개
     elsif v_mode = 'C' then
-      v_cards := array[null, null]::int[];                              -- C 모드(블라인드): 판이 끝나기 전에는 아무 카드도 안 보인다
+      v_cards := array[null, null]::int[];                              -- C 모드(블라인드): 상대 카드는 하나도 안 보인다 (공개 카드도 없음)
     elsif v_mode = 'A' then
       v_cards := array[case when hs.open_idx = 1 then hs.cards[1] end, case when hs.open_idx = 2 then hs.cards[2] end];
     else

@@ -221,7 +221,7 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
           <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-xs text-muted">내 카드는 이마에 붙어 있어요 — 나는 몰라요!</p>
         )}
         {m.mode === 'C' && betting && me.in_hand && (
-          <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-xs text-muted">아무 카드도 보이지 않아요 — 베팅만 보고 승부해요!</p>
+          <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-xs text-muted">내 카드만 보여요 — 상대는 베팅만 보고 읽어요!</p>
         )}
         {!me.in_hand && !over && (
           <p className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-xs text-muted">{me.chips === 0 ? '칩이 없어 탈락했어요. 남은 판을 구경해요.' : '이번 판은 쉬어요.'}</p>

@@ -39,7 +39,7 @@ describe('C 모드 (블라인드)', () => {
     await expect(rpc(db, owner, 'set_room_blind', room.room_id, room.admin_token, false)).rejects.toThrow(/ROOM_IN_USE/)
   })
 
-  it('판이 끝나기 전에는 누구에게도 카드가 보이지 않는다 (내 카드도, 상대 카드도)', async () => {
+  it('내 카드 2장만 보이고, 판이 끝나기 전에는 상대 카드가 하나도 안 보인다 (공개 카드도 없음)', async () => {
     for (const n of [2, 3, 5]) {
       const t = await setupBlind(n)
       const st = await rpc(db, t.users[0], 'get_match_state', t.matchId)
@@ -49,7 +49,8 @@ describe('C 모드 (블라인드)', () => {
         expect(v.mode).toBe('C')
         expect(v.revealed).toBe(false)
         for (const s of v.seats) {
-          expect(s.cards, `viewer ${me} seat ${s.seat}`).toEqual([null, null])
+          if (s.seat === me) expect(s.cards.every((c: unknown) => c !== null), `내 카드 (viewer ${me})`).toBe(true)
+          else expect(s.cards, `viewer ${me} seat ${s.seat}`).toEqual([null, null])
           expect(s.open).toBeNull()
         }
       }

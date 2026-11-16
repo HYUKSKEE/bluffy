@@ -141,7 +141,7 @@ create table public.card_room_seotda (
 );
 
 -- ───────────── C 모드(블라인드) ─────────────
--- 행이 있으면 그 방은 C 모드: 판이 끝나기 전에는 아무도 어떤 카드도 보지 못한다 (내 카드도, 상대 카드도).
+-- 행이 있으면 그 방은 C 모드: 내 카드 2장만 보이고, 판이 끝나기 전에는 상대 카드가 하나도 보이지 않는다 (공개 카드도 없음).
 -- (card_rooms.mode 는 A/B 만 허용하므로 별도 테이블로 둔다. 클라이언트에는 mode = 'C' 로 보인다.)
 create table public.card_room_blind (
   room_id uuid primary key references public.card_rooms(id) on delete cascade

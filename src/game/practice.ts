@@ -214,15 +214,14 @@ function confidence(g: PracticeGame, seat: number, rng: Rng): number {
   const alive = g.hand!.seats.map((x, i) => (x.inHand && !x.folded ? i : -1)).filter((i) => i >= 0)
   const opponents = alive.filter((i) => i !== seat)
   let s: number
-  if (g.opts.mode === 'A') {
+  if (g.opts.mode === 'A' || g.opts.mode === 'C') {
     s = handStrength(g.cards[seat]!, g.opts.rules ?? 'standard')
-    // 상대의 공개 카드가 높으면 조금 불안하다 (일반: 9 이상 / 섯다: 7~10월 카드)
-    const lim = (g.opts.rules ?? 'standard') === 'seotda' ? 13 : 9
-    const high = opponents.filter((o) => g.cards[o]![g.openIdx[o] - 1] >= lim).length
-    s -= 0.03 * high
-  } else if (g.opts.mode === 'C') {
-    // C 모드(블라인드): 아무 카드도 보이지 않는다. 베팅 흐름과 감만으로 정한다.
-    s = 0.5
+    if (g.opts.mode === 'A') {
+      // 상대의 공개 카드가 높으면 조금 불안하다 (일반: 9 이상 / 섯다: 7~10월 카드)
+      const lim = (g.opts.rules ?? 'standard') === 'seotda' ? 13 : 9
+      const high = opponents.filter((o) => g.cards[o]![g.openIdx[o] - 1] >= lim).length
+      s -= 0.03 * high
+    }
   } else {
     // B 모드: 내 카드는 모른다. 상대 카드에서 얻는 정보만 쓴다 (상대가 페어면 내가 높은 카드를 가졌을 확률이 줄어든다)
     const seotda = (g.opts.rules ?? 'standard') === 'seotda'

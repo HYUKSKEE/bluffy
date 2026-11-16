@@ -7,7 +7,7 @@ import { SoundButton } from '../components/SoundButton'
 const MODES: { id: Mode; name: string; tagline: string; desc: string; tone: 'red' | 'blue' }[] = [
   { id: 'A', name: 'A 모드 · 반공개', tagline: '정보는 적당히, 눈치는 팽팽하게', desc: '카드 2장 중 1장은 공개, 1장은 비공개. 나는 내 카드 2장과 각 상대의 공개 카드 1장을 봐요.', tone: 'blue' },
   { id: 'B', name: 'B 모드 · 눈치', tagline: '내 카드는 이마에! 상대 표정을 읽어라', desc: '모든 상대의 카드 2장이 보이고, 내 카드는 보이지 않아요. 상대들의 베팅이 유일한 힌트!', tone: 'red' },
-  { id: 'C', name: 'C 모드 · 블라인드', tagline: '아무것도 안 보여요! 베팅만 믿고 가라', desc: '판이 끝나기 전에는 내 카드도, 상대 카드도 아무것도 보이지 않아요. 상대의 베팅과 표정(?)만이 유일한 단서!', tone: 'red' },
+  { id: 'C', name: 'C 모드 · 블라인드', tagline: '내 패만 믿고 상대는 베팅으로 읽어라', desc: '내 카드 2장만 보이고, 판이 끝나기 전에는 상대 카드가 하나도 안 보여요(공개 카드도 없어요). 상대의 베팅이 유일한 단서!', tone: 'red' },
 ]
 
 export default function Create() {

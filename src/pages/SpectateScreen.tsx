@@ -49,7 +49,7 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
       cards: out ? [] : [0, 1].map((i) => ({
             value: sc?.cards[i] ?? null,
             // A: 상대에게 공개된 카드 / 본인만 아는 카드, B: 본인만 모르는 카드
-            tag: !tagsOn || !sc ? null : m.mode === 'C' ? '아무도 몰라요' : m.mode === 'B' ? '본인 모름' : sc.open === i + 1 ? '공개' : '비공개',
+            tag: !tagsOn || !sc ? null : m.mode === 'C' ? '주인만 앎' : m.mode === 'B' ? '본인 모름' : sc.open === i + 1 ? '공개' : '비공개',
           })),
       folded: o.folded,
       out,
@@ -126,7 +126,7 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
         </p>
         {tagsOn && h && (
           <p className="pointer-events-none absolute bottom-6 left-0 right-0 text-center text-[11px] text-muted">
-            {m.mode === 'A' ? '공개 = 상대들도 보는 카드 · 비공개 = 주인만 아는 카드' : m.mode === 'B' ? '본인 모름 = 상대들은 보지만 주인은 모르는 카드' : '아무도 몰라요 = 판이 끝나기 전까지 참가자 누구도 못 보는 카드'}
+            {m.mode === 'A' ? '공개 = 상대들도 보는 카드 · 비공개 = 주인만 아는 카드' : m.mode === 'B' ? '본인 모름 = 상대들은 보지만 주인은 모르는 카드' : '주인만 앎 = 주인만 보고 상대들은 전혀 못 보는 카드'}
           </p>
         )}
       </section>
