@@ -28,7 +28,7 @@ export interface StageOpp {
 
 export interface StageProps {
   opps: StageOpp[]
-  me: { cards: StageCard[]; win: boolean; folded: boolean; active: boolean; label: string; out: boolean }
+  me: { cards: StageCard[]; win: boolean; folded: boolean; active: boolean; label: string; out: boolean; /** 내 카드 옆에 살짝 보여 줄 족보 이름 (섯다) */ note?: string | null }
   pot: number
   /** 같은 판 안에서는 유지, 새 판이면 바뀌는 키 → 카드가 새로 "통" 하고 나타난다 */
   handKey: string
@@ -213,6 +213,10 @@ function Scene({ opps, me, pot, handKey, hwatu }: StageProps) {
       })}
 
       <PotStack pot={pot} />
+
+      {me.note && !me.out && (
+        <NameTag text={me.note} x={2.2} y={-2.5} wide={1.3} mood={me.win ? 'win' : 'normal'} />
+      )}
 
       <group key={`${handKey}-me`}>
         {me.cards.map((c, i) => (

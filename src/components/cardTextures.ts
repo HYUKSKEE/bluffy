@@ -113,6 +113,18 @@ export function hwatuTexture(id: number, tag: string | null, fontKey: number): T
       ctx.clip()
       ctx.drawImage(img, (W - w) / 2, 10, w, h)
       ctx.restore()
+      // 몇 월 카드인지 한눈에 보이도록 왼쪽 위에 월 표시
+      ctx.fillStyle = 'rgba(255,255,255,0.93)'
+      rr(ctx, 12, 12, 70, 44, 22)
+      ctx.fill()
+      ctx.lineWidth = 3
+      ctx.strokeStyle = '#d4183c'
+      ctx.stroke()
+      ctx.fillStyle = '#1b1b2a'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.font = `34px ${FONT}`
+      ctx.fillText(`${month}월`, 47, 36)
     } else {
       ctx.fillStyle = '#d4183c'
       ctx.textAlign = 'center'

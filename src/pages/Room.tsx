@@ -8,6 +8,7 @@ import MatchScreen from './MatchScreen'
 import SpectateScreen from './SpectateScreen'
 import Practice from './Practice'
 import { SoundButton } from '../components/SoundButton'
+import { SeotdaChartButton } from '../components/SeotdaChart'
 
 const NICK_KEY = 'bluffy_nick'
 
@@ -199,7 +200,7 @@ export default function Room() {
         <div className="mb-1 flex flex-wrap items-center gap-2">
           <span className={`tag ${room.mode === 'B' ? 'tag-red' : ''}`}>{room.mode} 모드</span>
           {room.hard && <span className="tag tag-red">고난이도</span>}
-          {room.seotda && <span className="tag tag-red">섯다</span>}
+          {room.seotda && <SeotdaChartButton />}
           <span className="text-sm text-muted">{view.participants}명 · 대결 {view.active_matches}건 진행 중</span>
         </div>
         <h1 className="mb-4 text-3xl">{room.title}</h1>

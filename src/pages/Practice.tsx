@@ -8,6 +8,7 @@ import { handName, legalActions, MAX_HANDS } from '../game/rules'
 import { playSfx } from '../lib/sound'
 import { Chips, Logo, Modal, PileBadge, RulesModal, Spinner } from '../components/ui'
 import { SoundButton } from '../components/SoundButton'
+import { SeotdaChartButton } from '../components/SeotdaChart'
 import type { StageCard, StageOpp } from '../components/MatchStage'
 
 const MatchStage = lazy(() => import('../components/MatchStage'))
@@ -203,6 +204,7 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
   )
 
   const me = hand.seats[0]
+  const myHandName = seotda && me.inHand && g.cards[0] && (mode === 'A' || revealed) ? handName(g.cards[0], 'seotda') : null
   const pot = hand.carryIn + hand.seats.reduce((a, s) => a + s.committed, 0)
   const legal = betting && me.inHand && !me.folded ? legalActions(hand, 0) : null
   const myTurn = turn === 0
@@ -232,7 +234,7 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
         <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-center text-xs text-muted">
           <span className="tag">연습</span>
           <span className={`tag ml-1 ${mode === 'B' ? 'tag-red' : ''}`}>{mode} 모드</span>
-          {seotda && <span className="tag tag-red ml-1">섯다</span>}
+          {seotda && <SeotdaChartButton className="ml-1" />}
           <span className="ml-2">{Math.max(1, g.handNo)} / {MAX_HANDS} 판</span>
         </div>
         <div className="flex shrink-0 gap-1.5">
@@ -247,7 +249,7 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
         <Suspense fallback={<Spinner label="카드를 섞는 중..." />}>
           <MatchStage
             opps={opps}
-            me={{ cards: toStage(0, true), win: finished && winnerSeats.has(0), folded: me.folded, active: myTurn, label: `나 · ${chipsOf(0)}`, out: !me.inHand }}
+            me={{ cards: toStage(0, true), win: finished && winnerSeats.has(0), folded: me.folded, active: myTurn, label: `나 · ${chipsOf(0)}`, out: !me.inHand, note: myHandName }}
             pot={pot}
             handKey={`${g.handNo}`}
             hwatu={seotda}
@@ -282,7 +284,7 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
         <div className="flex items-center gap-2">
           <span className="inline-block h-3 w-3 rounded-full bg-blue" />
           <b className="font-normal">나</b>
-          {seotda && me.inHand && g.cards[0] && (mode === 'A' || revealed) && <span className="tag">{handName(g.cards[0], 'seotda')}</span>}
+          {myHandName && <span className="tag">{myHandName}</span>}
           {myTurn && <span className="tag animate-bounceY">내 차례</span>}
           {me.folded && <span className="tag tag-red">다이</span>}
         </div>

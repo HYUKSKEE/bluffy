@@ -75,7 +75,7 @@ export function RulesBody() {
         <span className="tag tag-red mr-1.5">B 모드</span>모든 상대의 카드 2장이 보여요. 내 카드만 몰라요!
       </li>
       <li>
-        <span className="tag tag-red mr-1.5">섯다</span>화투 20장(1~10월 × 2장)! 광땡 &gt; 땡(장땡이 최고) &gt; 알리·독사·구삥·장삥·장사·세륙 &gt; 끗(갑오 9끗 … 망통 0끗). 암행어사(4월+7월 열끗)는 18·13광땡을, 땡잡이(3월 광+7월 열끗)는 1~9땡을 이겨요.
+        <span className="tag tag-red mr-1.5">섯다</span>화투 20장(1~10월 × 2장)! 광땡 &gt; 땡(장땡이 최고) &gt; 알리·독사·구삥·장삥·장사·세륙 &gt; 끗(갑오 9끗 … 망통 0끗). 암행어사(4월+7월 열끗)는 18·13광땡을, 땡잡이(3월 광+7월 열끗)는 1~9땡을 이겨요. 섯다 방에서는 📖 섯다 족보 버튼으로 족보표를 볼 수 있어요.
       </li>
       <li>
         <span className="tag tag-red mr-1.5">고난이도</span>덱을 섞지 않고 이어서 써요! 쓴 카드는 버린 더미로 가서 다시 볼 수 없으니 <b className="font-normal">공개된 패를 기억</b>하세요. 남은 장수는 보여요. 덱이 모자라거나 <b className="font-normal">셔플 예고 카드</b>가 나오면 그 판이 끝난 뒤 모두 섞고, 새 덱 첫 판엔 &quot;셔플 중&quot; 표시가 떠요.

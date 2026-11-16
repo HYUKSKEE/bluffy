@@ -6,6 +6,7 @@ import type { StageOpp } from '../components/MatchStage'
 import ChatPanel from '../components/ChatPanel'
 import { handName } from '../game/rules'
 import { SoundButton } from '../components/SoundButton'
+import { SeotdaChartButton } from '../components/SeotdaChart'
 import { useGameSounds } from '../lib/useGameSounds'
 
 const MatchStage = lazy(() => import('../components/MatchStage'))
@@ -68,6 +69,7 @@ export default function SpectateScreen({ matchId, onExit }: { matchId: string; o
         <button className="candy candy-dark candy-sm !min-h-[40px] shrink-0 whitespace-nowrap !px-3 !py-2 text-sm" onClick={onExit}>나가기</button>
         <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-center text-xs text-muted">
           <span className="tag">👀 관전 중</span>
+          {m.seotda && <SeotdaChartButton />}
           <span className="ml-2">{Math.max(1, m.hand_no)} / {m.max_hands} 판 · {state.seats.filter((s) => !s.left).length}명</span>
         </div>
         <div className="flex shrink-0 gap-1.5">

@@ -7,6 +7,7 @@ import type { StageCard, StageOpp } from '../components/MatchStage'
 import TableWaiting from './TableWaiting'
 import ChatPanel from '../components/ChatPanel'
 import { SoundButton } from '../components/SoundButton'
+import { SeotdaChartButton } from '../components/SeotdaChart'
 import { useGameSounds } from '../lib/useGameSounds'
 
 const MatchStage = lazy(() => import('../components/MatchStage')) // three.js 는 대결 화면에서만 로드
@@ -157,6 +158,7 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
         <button className="candy candy-dark candy-sm !min-h-[40px] shrink-0 whitespace-nowrap !px-3 !py-2 text-sm" onClick={() => setLeaving(true)} disabled={over}>나가기</button>
         <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-center text-xs text-muted">
           <span className={`tag ${m.mode === 'B' ? 'tag-red' : ''}`}>{m.mode} 모드</span>
+          {m.seotda && <SeotdaChartButton />}
           <span className="ml-2">{Math.max(1, m.hand_no)} / {m.max_hands} 판 · {state.seats.filter((s) => !s.left).length}명</span>
         </div>
         <div className="flex shrink-0 gap-1.5">
@@ -194,7 +196,7 @@ export default function MatchScreen({ matchId, myPlayerId, onExit }: { matchId: 
         <Suspense fallback={<Spinner label="카드를 섞는 중..." />}>
           <MatchStage
             opps={stageOpps}
-            me={{ cards: myCards, win: finishedHand && winnerSeats.has(mySeat), folded: me.folded, active: myTurn, label: me.nickname, out: !me.in_hand }}
+            me={{ cards: myCards, win: finishedHand && winnerSeats.has(mySeat), folded: me.folded, active: myTurn, label: me.nickname, out: !me.in_hand, note: myHandName }}
             pot={h?.pot ?? 0}
             handKey={`${h?.id ?? 'none'}`}
             hwatu={m.seotda}
