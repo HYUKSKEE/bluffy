@@ -99,14 +99,16 @@ describe('공개 시점', () => {
       }
     })
 
-    it(`${mode} 모드: 다이로 끝나도 판이 끝나면 모든 참여자의 패가 공개된다`, async () => {
+    it(`${mode} 모드: 다이로 끝나면 남은 사람에게만 모든 참여자의 패가 공개되고, 다이한 사람은 계속 못 본다`, async () => {
       const t = await setupMatch(db, mode, 3)
       const st = await state(t)
       const handId = st.hand.id
       const midView = await view(t, 1) // 판이 진행 중일 때는 아직 비공개
       expect(midView.revealed).toBe(false)
+      const folded: number[] = []
       for (let i = 0; i < 2; i++) {
-        const { uid } = await turnUser(t)
+        const { uid, seat } = await turnUser(t)
+        folded.push(seat)
         await rpc(db, uid, 'act', handId, 'die', 0)
       }
       expect((await state(t)).hand.status).toBe('finished')
@@ -114,24 +116,33 @@ describe('공개 시점', () => {
       for (let me = 1; me <= 3; me++) {
         const v = await view(t, me, 1)
         expect(v.revealed).toBe(true)
-        for (let s = 1; s <= 3; s++) expect(seatOf(v, s).cards).toEqual(tr[s].cards)
+        expect(seatOf(v, me).cards).toEqual(tr[me].cards) // 내 패는 항상 공개
+        for (let s = 1; s <= 3; s++) {
+          if (s === me) continue
+          if (folded.includes(me)) expect(seatOf(v, s).cards).toEqual([null, null]) // 다이한 사람은 못 본다
+          else expect(seatOf(v, s).cards).toEqual(tr[s].cards) // 끝까지 남은 사람은 본다
+        }
       }
     })
   }
 
-  it('A 모드: 쇼다운이 되면 다이한 사람의 패도 함께 공개된다', async () => {
+  it('A 모드: 쇼다운이 되면 남은 사람에게는 다이한 사람의 패도 공개되고, 다이한 사람 본인은 상대 패를 못 본다', async () => {
     const t = await setupMatch(db, 'A', 3)
     const st = await state(t)
     const { uid: first, seat: s1 } = await turnUser(t)
     await rpc(db, first, 'act', st.hand.id, 'bet', 1)
     const { uid: second, seat: s2 } = await turnUser(t)
     await rpc(db, second, 'act', st.hand.id, 'die', 0)
-    const { uid: third } = await turnUser(t)
+    const { uid: third, seat: s3 } = await turnUser(t)
     await rpc(db, third, 'act', st.hand.id, 'call', 0)
     expect((await state(t)).hand.revealed).toBe(true)
     const tr = await truth(st.hand.id)
     const v = await view(t, s1)
     expect(seatOf(v, s2).cards).toEqual(tr[s2].cards)
+    const vf = await view(t, s2) // 다이한 사람
+    expect(seatOf(vf, s1).cards).toEqual([null, null])
+    expect(seatOf(vf, s3).cards).toEqual([null, null])
+    expect(seatOf(vf, s2).cards).toEqual(tr[s2].cards)
   })
 
   it('참가자가 아니면 조회 불가', async () => {
@@ -218,4 +229,47 @@ describe('카드가 새어 나갈 수 있는 경로 차단', () => {
     expect(r.rows[0].admin_token_hash).not.toBe(t.adminToken)
     expect(r.rows[0].admin_token_hash).toMatch(/^[0-9a-f]{64}$/)
   })
+})
+
+describe('다이한 사람은 상대 패를 볼 수 없다', () => {
+  for (const mode of ['A', 'B'] as const) {
+    it(`${mode} 모드: 다이하면 판이 끝나도 상대 패가 안 보이고, 남은 사람만 공개된 패를 본다`, async () => {
+      const t = await setupMatch(db, mode, 3)
+      const st = await state(t)
+      const tr = await truth(st.hand.id)
+      // 다이하기 전에는 모드 규칙대로 보인다
+      const first = await turnUser(t)
+      const before = await view(t, first.seat)
+      const other = [1, 2, 3].find((s) => s !== first.seat)!
+      expect(seatOf(before, other).cards.some((c: unknown) => c !== null)).toBe(true)
+
+      await rpc(db, first.uid, 'act', st.hand.id, 'die', 0)
+      expect((await state(t)).hand.status).toBe('betting') // 두 명이 남아 판은 계속
+
+      // 다이한 사람: 상대 카드는 모두 null (A 모드의 공개 카드 포함), 내 카드는 모드 규칙대로
+      const after = await view(t, first.seat)
+      for (const s of [1, 2, 3].filter((x) => x !== first.seat)) expect(seatOf(after, s).cards).toEqual([null, null])
+      expect(seatOf(after, first.seat).cards).toEqual(mode === 'A' ? tr[first.seat].cards : [null, null])
+      expect(JSON.stringify(after)).not.toMatch(new RegExp(`"cards":\\[(${tr[other].cards[0]}|${tr[other].cards[1]}),`)) // 상대 값이 새지 않는다
+
+      // 남은 두 사람은 그대로 상대 패를 본다
+      const remain = [1, 2, 3].find((x) => x !== first.seat && x !== other)!
+      const rv = await view(t, remain)
+      expect(seatOf(rv, other).cards.some((c: unknown) => c !== null)).toBe(true)
+
+      // 판이 끝나면 다이한 사람 포함 전원 공개
+      for (;;) {
+        const cur = await turnUser(t)
+        await rpc(db, cur.uid, 'act', st.hand.id, 'check', 0)
+        if ((await state(t)).hand.status === 'finished') break
+      }
+      // 판이 끝나도 다이한 사람은 상대 패를 못 보고, 남은 사람은 전원의 패를 본다
+      const end = await view(t, first.seat, 1)
+      expect(end.revealed).toBe(true)
+      expect(seatOf(end, first.seat).cards).toEqual(tr[first.seat].cards)
+      for (const s of [1, 2, 3].filter((x) => x !== first.seat)) expect(seatOf(end, s).cards).toEqual([null, null])
+      const endRemain = await view(t, remain, 1)
+      for (let s = 1; s <= 3; s++) expect(seatOf(endRemain, s).cards).toEqual(tr[s].cards)
+    })
+  }
 })

@@ -230,7 +230,7 @@ describe('베팅 검증 (서버)', () => {
     void sc
   })
 
-  it('다이하면 상대가 판돈을 가져가고 패가 공개된다', async () => {
+  it('다이하면 상대가 판돈을 가져가고, 판 종료 상태가 된다', async () => {
     const t = await setupMatch(db, 'B', 2)
     const { st, uid, seat } = await turn(t)
     await act(uid, st.hand.id, 'die')

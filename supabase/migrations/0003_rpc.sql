@@ -333,6 +333,7 @@ declare
   v_my_seat int;
   hs record;
   v_cards int[];
+  v_out boolean;
   v_seats jsonb := '[]'::jsonb;
 begin
   if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
@@ -348,11 +349,20 @@ begin
    order by hand_no desc limit 1;
   if not found then return null; end if;
 
+  -- 다이한 사람은 상대의 패를 볼 수 없다. 판이 끝난 뒤에도 마찬가지다
+  -- (끝까지 남은 사람만 공개된 패를 본다. 본 정보를 남에게 알려주는 것 방지).
+  v_out := exists (select 1 from card_hand_seats x where x.hand_id = h.id and x.seat = v_my_seat and x.folded);
+
   for hs in select * from card_hand_seats where hand_id = h.id order by seat loop
-    if h.revealed and hs.in_hand then
-      v_cards := hs.cards;                                              -- 판이 끝나면 그 판에 참여한 모든 좌석의 패를 공개
-    elsif hs.seat = v_my_seat then
-      v_cards := case when r.mode = 'A' then hs.cards else array[null, null]::int[] end;
+    if hs.seat = v_my_seat then
+      -- 내 카드: 판이 끝나면 공개, 진행 중에는 모드 규칙 (A: 보임, B: 안 보임)
+      v_cards := case when h.revealed and hs.in_hand then hs.cards
+                      when r.mode = 'A' then hs.cards
+                      else array[null, null]::int[] end;
+    elsif v_out then
+      v_cards := array[null, null]::int[];                              -- 다이한 사람: 상대 패는 끝까지 안 보인다
+    elsif h.revealed and hs.in_hand then
+      v_cards := hs.cards;                                              -- 판이 끝나면 남은 사람에게 그 판 참여자 전원의 패를 공개
     elsif r.mode = 'A' then
       v_cards := array[case when hs.open_idx = 1 then hs.cards[1] end, case when hs.open_idx = 2 then hs.cards[2] end];
     else
