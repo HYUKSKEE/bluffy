@@ -80,7 +80,7 @@ export function RulesBody() {
       <li>
         <span className="tag tag-red mr-1.5">고난이도</span>덱을 섞지 않고 이어서 써요! 쓴 카드는 버린 더미로 가서 다시 볼 수 없으니 <b className="font-normal">공개된 패를 기억</b>하세요. 남은 장수는 보여요. 덱이 모자라거나 <b className="font-normal">셔플 예고 카드</b>가 나오면 그 판이 끝난 뒤 모두 섞고, 새 덱 첫 판엔 &quot;셔플 중&quot; 표시가 떠요.
       </li>
-      <li className="text-sm text-muted">한 판이 끝나면 끝까지 남은 사람에게 모두의 패가 공개돼요(다이한 사람은 못 봐요). 칩은 가상이며 무료예요. 현금·경품과 무관해요.</li>
+      <li className="text-sm text-muted">한 판이 끝나면 끝까지 남은 사람끼리 패가 공개돼요. 다이한 사람은 남의 패를 못 보고, 다이한 사람의 패도 남이 못 봐요. 칩은 가상이며 무료예요. 현금·경품과 무관해요.</li>
     </ul>
   )
 }

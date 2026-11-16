@@ -367,8 +367,8 @@ begin
    order by hand_no desc limit 1;
   if not found then return null; end if;
 
-  -- 다이한 사람은 상대의 패를 볼 수 없다. 판이 끝난 뒤에도 마찬가지다
-  -- (끝까지 남은 사람만 공개된 패를 본다. 본 정보를 남에게 알려주는 것 방지).
+  -- 다이한 사람은 상대의 패를 볼 수 없고, 다이한 사람의 패도 상대에게 보이지 않는다 (진행 중에도, 판이 끝난 뒤에도).
+  -- 끝까지 남은 사람들만 판이 끝나면 서로의 패를 본다. (본 정보를 남에게 알려주는 것 방지)
   v_out := exists (select 1 from card_hand_seats x where x.hand_id = h.id and x.seat = v_my_seat and x.folded);
 
   for hs in select * from card_hand_seats where hand_id = h.id order by seat loop
@@ -379,8 +379,10 @@ begin
                       else array[null, null]::int[] end;
     elsif v_out then
       v_cards := array[null, null]::int[];                              -- 다이한 사람: 상대 패는 끝까지 안 보인다
+    elsif hs.folded then
+      v_cards := array[null, null]::int[];                              -- 다이한 사람의 패는 상대에게 (진행 중에도, 끝난 뒤에도) 안 보인다
     elsif h.revealed and hs.in_hand then
-      v_cards := hs.cards;                                              -- 판이 끝나면 남은 사람에게 그 판 참여자 전원의 패를 공개
+      v_cards := hs.cards;                                              -- 판이 끝나면 끝까지 남은 사람들의 패를 서로 공개
     elsif r.mode = 'A' then
       v_cards := array[case when hs.open_idx = 1 then hs.cards[1] end, case when hs.open_idx = 2 then hs.cards[2] end];
     else

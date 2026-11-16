@@ -155,7 +155,7 @@ describe('섯다 방 (서버)', () => {
     }
   })
 
-  it('섯다 방에서도 다이한 사람은 상대 패를 못 보고(판이 끝난 뒤에도), 남은 사람은 본다', async () => {
+  it('섯다 방에서도 다이한 사람은 상대 패를 못 보고 내 패도 남이 못 본다 (판이 끝난 뒤에도)', async () => {
     const t = await setupSeotda(3)
     const st = await rpc(db, t.users[0], 'get_match_state', t.matchId)
     const truth = Object.fromEntries((await sql(db, 'select seat, cards from card_hand_seats where hand_id = $1', [st.hand.id])).rows.map((r: any) => [r.seat, r.cards]))
@@ -174,7 +174,8 @@ describe('섯다 방 (서버)', () => {
     for (const s of seats.filter((x) => x !== first)) expect(after.seats.find((x: any) => x.seat === s).cards).toEqual([null, null])
     const remain = seats.find((x) => x !== first)!
     const rv = await view(remain)
-    for (const s of seats) expect(rv.seats.find((x: any) => x.seat === s).cards).toEqual(truth[s])
+    for (const s of seats.filter((x) => x !== first)) expect(rv.seats.find((x: any) => x.seat === s).cards).toEqual(truth[s])
+    expect(rv.seats.find((x: any) => x.seat === first).cards).toEqual([null, null]) // 다이한 사람의 패는 남이 못 본다
   })
 
   it('일반 룸은 이전과 같다 (카드 1~10)', async () => {

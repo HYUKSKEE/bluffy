@@ -166,9 +166,13 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
     else if (turn === 0 && p.turn !== 0) playSfx('turn')
   }, [g, turn]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 다이한 사람은 남의 패를 못 보고, 다이한 사람의 패도 남이 못 본다 (실제 게임과 같은 규칙)
+  const meFolded = hand.seats[0].folded
+  const hiddenFromMe = (seat: number) => seat !== 0 && (meFolded || hand.seats[seat].folded)
   const toStage = (seat: number, mine: boolean): StageCard[] => {
     const c = g.cards[seat]
     if (!c || !hand.seats[seat].inHand) return []
+    if (hiddenFromMe(seat)) return [{ value: null }, { value: null }]
     return [0, 1].map((i) => {
       if (revealed) return { value: c[i] }
       if (mode === 'A') {
@@ -187,7 +191,7 @@ function Game({ g, setG, rules, setRules, onRestart, onSetup, onExit }: {
         const tail = out ? ' 탈락' : s.folded ? ' 다이' : ''
         return {
           id: String(seat),
-          label: `${short(g.names[seat])} · ${chipsOf(seat)}${tail}${seotda && revealed && !out && g.cards[seat] ? ` · ${handName(g.cards[seat]!, 'seotda')}` : ''}`,
+          label: `${short(g.names[seat])} · ${chipsOf(seat)}${tail}${seotda && revealed && !out && g.cards[seat] && !hiddenFromMe(seat) ? ` · ${handName(g.cards[seat]!, 'seotda')}` : ''}`,
           cards: out ? [] : toStage(seat, false),
           folded: s.folded,
           out,
