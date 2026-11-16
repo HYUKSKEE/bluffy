@@ -6,6 +6,7 @@ import { useRoom, useTables } from '../lib/hooks'
 import { Chips, CopyButton, ErrorScreen, Logo, Modal, RulesModal, Spinner } from '../components/ui'
 import MatchScreen from './MatchScreen'
 import SpectateScreen from './SpectateScreen'
+import Practice from './Practice'
 
 const NICK_KEY = 'bluffy_nick'
 
@@ -43,11 +44,12 @@ export default function Room() {
   const [rules, setRules] = useState(false)
   const [inMatch, setInMatch] = useState<string | null>(null)
   const [watching, setWatching] = useState<string | null>(null)
+  const [practicing, setPracticing] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [newNick, setNewNick] = useState('')
   const [renameMsg, setRenameMsg] = useState<string | null>(null)
   const [confirmReset, setConfirmReset] = useState(false)
-  const tables = useTables(id, Boolean(player) && !inMatch && !watching)
+  const tables = useTables(id, Boolean(player) && !inMatch && !watching && !practicing)
 
   useEffect(() => { ensureAuth().catch(() => setAuthFail(true)) }, [])
   // 재접속 시 진행 중인 매치로 자동 복귀
@@ -65,6 +67,9 @@ export default function Room() {
   if (inMatch && player) {
     return <MatchScreen matchId={inMatch} myPlayerId={player.id} onExit={() => { setInMatch(null); setMatchId(null); void refresh() }} />
   }
+
+  // 연습 게임(컴퓨터와 대결): 방에 들어온 채로 할 수 있고, 점수·랭킹에는 반영되지 않는다
+  if (practicing && player) return <Practice onExit={() => setPracticing(false)} />
 
   const room = view.room
 
@@ -206,6 +211,9 @@ export default function Room() {
         {msg && <p role="alert" className="mb-3 text-red-soft">{msg}</p>}
         <button className="candy w-full text-xl" onClick={findTable} disabled={busy}>
           {busy ? '테이블을 찾는 중...' : view.waiting_tables > 0 ? `대결 찾기 (대기 중인 테이블 ${view.waiting_tables}개)` : '대결 찾기'}
+        </button>
+        <button className="candy candy-dark mt-3 w-full" onClick={() => setPracticing(true)} disabled={busy}>
+          🤖 혼자 연습하기 <span className="text-xs text-muted">(점수 반영 없음)</span>
         </button>
         <p className="mt-3 text-center text-sm text-muted">2~5명이 한 테이블 · 시작 칩 <Chips n={100} /> · 최대 10판 · 방장이 시작해요</p>
       </section>

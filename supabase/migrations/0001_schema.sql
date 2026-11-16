@@ -134,6 +134,12 @@ create table public.card_match_decks (
   marker_out boolean not null default false      -- 이번 판에 셔플 예고 카드가 나왔는가 (이번 판이 끝나면 셔플)
 );
 
+-- ───────────── 공개 방 목록 ─────────────
+-- 방 목록(홈 화면)에 보이도록 공개한 방. 행이 있으면 공개, 없으면 링크를 아는 사람만 들어올 수 있는 비공개.
+create table public.card_public_rooms (
+  room_id uuid primary key references public.card_rooms(id) on delete cascade
+);
+
 -- ───────────── 채팅 ─────────────
 -- 테이블(매치)별 채팅. channel: 'table' = 앉은 참가자끼리, 'spectate' = 관전자끼리 (서로 안 보인다:
 -- 관전자는 모든 카드를 볼 수 있어서 참가자에게 알려줄 수 있기 때문). 방이 종료되면 지워지고,
@@ -161,6 +167,7 @@ alter table public.card_actions       enable row level security;
 alter table public.card_room_options  enable row level security;
 alter table public.card_match_decks   enable row level security;
 alter table public.card_chat_messages  enable row level security;
+alter table public.card_public_rooms   enable row level security;
 
 -- Supabase 는 새 테이블에 anon/authenticated 권한을 기본 부여한다 → 이 마이그레이션이 만든 card_ 테이블만 회수.
 -- (기존 객체(다른 게임의 테이블/함수/시퀀스)는 절대 건드리지 않는다. identity 시퀀스는 테이블 권한을 따른다.)
@@ -168,10 +175,10 @@ alter table public.card_chat_messages  enable row level security;
 revoke all on
   public.card_rooms, public.card_players, public.card_matches, public.card_match_players,
   public.card_hands, public.card_hand_seats, public.card_actions,
-  public.card_room_options, public.card_match_decks, public.card_chat_messages
+  public.card_room_options, public.card_match_decks, public.card_chat_messages, public.card_public_rooms
 from public;
 revoke all on
   public.card_rooms, public.card_players, public.card_matches, public.card_match_players,
   public.card_hands, public.card_hand_seats, public.card_actions,
-  public.card_room_options, public.card_match_decks, public.card_chat_messages
+  public.card_room_options, public.card_match_decks, public.card_chat_messages, public.card_public_rooms
 from anon, authenticated;

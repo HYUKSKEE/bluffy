@@ -29,6 +29,47 @@ begin
   return v_res;
 end $$;
 
+-- 방을 목록에 공개/비공개로 바꾼다 (관리 토큰이 있는 방 생성자만)
+create function public.card_set_room_public(p_room_id uuid, p_admin_token text, p_public boolean)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
+  if not public.card_verify_admin(p_room_id, p_admin_token) then raise exception 'FORBIDDEN'; end if;
+  if coalesce(p_public, false) then
+    insert into card_public_rooms (room_id) values (p_room_id) on conflict do nothing;
+  else
+    delete from card_public_rooms where room_id = p_room_id;
+  end if;
+  perform card_game.notify('card_room:' || p_room_id);
+  return jsonb_build_object('public', coalesce(p_public, false));
+end $$;
+
+-- 열려 있는 공개 방 목록 (최근 6시간 안에 만들어졌거나 접속한 사람이 있는 방, 최대 30개). uid/관리 토큰은 내보내지 않는다.
+create function public.card_list_open_rooms()
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+             'id', t.id, 'title', t.title, 'mode', t.mode, 'hard', t.hard, 'created_at', t.created_at,
+             'participants', t.participants, 'active_matches', t.active_matches, 'waiting_tables', t.waiting_tables)
+           order by t.waiting_tables desc, t.active_matches desc, t.created_at desc)
+      from (
+        select r.id, r.title, r.mode, r.created_at,
+               coalesce((select o.hard from card_room_options o where o.room_id = r.id), false) as hard,
+               (select count(*) from card_players p where p.room_id = r.id) as participants,
+               (select count(*) from card_matches m where m.room_id = r.id and m.status = 'playing') as active_matches,
+               (select count(*) from card_matches m where m.room_id = r.id and m.status = 'waiting') as waiting_tables
+          from card_rooms r join card_public_rooms pr on pr.room_id = r.id
+         where r.status = 'open'
+           and (r.created_at > now() - interval '6 hours'
+                or exists (select 1 from card_players p where p.room_id = r.id and p.last_seen > now() - interval '6 hours'))
+         order by r.created_at desc
+         limit 30
+      ) t
+  ), '[]'::jsonb);
+end $$;
+
 -- 방 정보 + 랭킹 (링크를 아는 사람에게 공개). uid 는 노출하지 않는다.
 create function public.card_get_room_view(p_room_id uuid)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
@@ -41,7 +82,8 @@ begin
   return jsonb_build_object(
     'room', jsonb_build_object('id', r.id, 'title', r.title, 'mode', r.mode, 'status', r.status,
                                'created_at', r.created_at, 'closed_at', r.closed_at,
-                               'hard', coalesce((select o.hard from card_room_options o where o.room_id = r.id), false)),
+                               'hard', coalesce((select o.hard from card_room_options o where o.room_id = r.id), false),
+                               'public', exists (select 1 from card_public_rooms pr where pr.room_id = r.id)),
     'participants', (select count(*) from card_players where room_id = r.id),
     'active_matches', (select count(*) from card_matches where room_id = r.id and status = 'playing'),
     'waiting_tables', (select count(*) from card_matches where room_id = r.id and status = 'waiting'),
@@ -653,6 +695,8 @@ revoke all on function card_game.chat_channel(uuid, uuid) from public;
 revoke execute on function
   public.card_create_room(text, text),
   public.card_create_room_ex(text, text, boolean),
+  public.card_set_room_public(uuid, text, boolean),
+  public.card_list_open_rooms(),
   public.card_rename_player(uuid, text),
   public.card_send_emote(uuid, text),
   public.card_send_chat(uuid, text),
@@ -676,6 +720,8 @@ from public, anon, authenticated;
 grant execute on function
   public.card_create_room(text, text),
   public.card_create_room_ex(text, text, boolean),
+  public.card_set_room_public(uuid, text, boolean),
+  public.card_list_open_rooms(),
   public.card_send_emote(uuid, text),
   public.card_rename_player(uuid, text),
   public.card_send_chat(uuid, text),

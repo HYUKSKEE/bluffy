@@ -13,6 +13,7 @@ export default function Create() {
   const [title, setTitle] = useState('')
   const [mode, setMode] = useState<Mode>('A')
   const [hard, setHard] = useState(false)
+  const [isPublic, setIsPublic] = useState(true)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [conn, setConn] = useState(false)
@@ -25,6 +26,7 @@ export default function Create() {
     try {
       const r = await api.createRoom(title.trim(), mode, hard)
       saveAdminToken(r.room_id, r.admin_token)
+      if (isPublic) await api.setRoomPublic(r.room_id, r.admin_token, true).catch(() => undefined) // 실패해도 방은 만들어진다(비공개)
       setMade({ roomId: r.room_id, token: r.admin_token })
     } catch (e2) {
       if (isConnectionError(e2)) setConn(true)
@@ -104,6 +106,14 @@ export default function Create() {
           </div>
           <p className="mb-1 text-sm text-ink">쓴 카드를 기억하는 카운팅 게임</p>
           <p className="text-sm leading-relaxed text-muted">덱을 매 판 섞지 않고 이어서 써요. 쓴 카드는 다시 볼 수 없고 남은 장수만 보여요. 덱이 바닥나기 전 &quot;셔플 예고 카드&quot;가 나오면 그 판 뒤에 새로 섞어요.</p>
+        </label>
+
+        <label className="jelly-panel flex cursor-pointer items-center justify-between gap-3 !rounded-2xl p-4">
+          <span>
+            <b className="block font-normal">방 목록에 공개</b>
+            <span className="text-sm text-muted">켜면 홈 화면의 &quot;열려 있는 방&quot; 목록에 보여요. 끄면 링크를 아는 사람만 들어올 수 있어요.</span>
+          </span>
+          <input type="checkbox" className="h-6 w-6 flex-none accent-[#3da5ff]" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} aria-label="방 목록에 공개" />
         </label>
 
         {err && <p role="alert" className="rounded-2xl bg-red/20 px-4 py-3 text-red-soft">{err}</p>}

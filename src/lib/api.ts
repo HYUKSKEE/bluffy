@@ -25,11 +25,23 @@ export interface RankRow {
 }
 
 export interface RoomView {
-  room: { id: string; title: string; mode: Mode; status: 'open' | 'closed'; created_at: string; closed_at: string | null; hard: boolean }
+  room: { id: string; title: string; mode: Mode; status: 'open' | 'closed'; created_at: string; closed_at: string | null; hard: boolean; public: boolean }
   participants: number
   active_matches: number
   waiting_tables: number
   ranking: RankRow[]
+}
+
+/** 홈 화면의 열려 있는 공개 방 */
+export interface OpenRoom {
+  id: string
+  title: string
+  mode: Mode
+  hard: boolean
+  created_at: string
+  participants: number
+  active_matches: number
+  waiting_tables: number
 }
 
 /** 고난이도(덱 순환) 정보. 카드 값은 없고 장수/셔플 상태만 공개된다. */
@@ -230,6 +242,9 @@ async function rpc<T>(fn: string, args?: Record<string, unknown>): Promise<T> {
 export const api = {
   createRoom: (title: string, mode: Mode, hard = false) =>
     rpc<{ room_id: string; admin_token: string }>('card_create_room_ex', { p_title: title, p_mode: mode, p_hard: hard }),
+  listOpenRooms: () => rpc<OpenRoom[]>('card_list_open_rooms'),
+  setRoomPublic: (roomId: string, token: string, isPublic: boolean) =>
+    rpc<{ public: boolean }>('card_set_room_public', { p_room_id: roomId, p_admin_token: token, p_public: isPublic }),
   getRoomView: (roomId: string) => rpc<RoomView>('card_get_room_view', { p_room_id: roomId }),
   joinRoom: (roomId: string, nickname: string) => rpc<PlayerSelf>('card_join_room', { p_room_id: roomId, p_nickname: nickname }),
   myStatus: (roomId: string) => rpc<{ player: PlayerSelf | null; match_id: string | null }>('card_my_status', { p_room_id: roomId }),

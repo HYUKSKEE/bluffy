@@ -5,6 +5,7 @@ import Create from './pages/Create'
 import Room from './pages/Room'
 import Admin from './pages/Admin'
 import Result from './pages/Result'
+import Practice from './pages/Practice'
 import { ConfigScreen, Spinner } from './components/ui'
 import { isConfigured } from './lib/supabase'
 
@@ -12,12 +13,23 @@ import { isConfigured } from './lib/supabase'
 const Demo = import.meta.env.DEV ? lazy(() => import('./pages/Demo')) : null
 
 export default function App() {
-  if (!isConfigured) return <ConfigScreen />
+  // 연습 게임은 서버 없이 동작하므로 Supabase 설정이 없어도 열린다
+  if (!isConfigured) {
+    return (
+      <Suspense fallback={<Spinner />}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+          <Route path="*" element={<ConfigScreen />} />
+        </Routes>
+      </Suspense>
+    )
+  }
   return (
     <Suspense fallback={<Spinner />}>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/create" element={<Create />} />
+        <Route path="/practice" element={<Practice />} />
         <Route path="/r/:id" element={<Room />} />
         <Route path="/r/:id/admin" element={<Admin />} />
         <Route path="/r/:id/result" element={<Result />} />

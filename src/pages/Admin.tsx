@@ -86,6 +86,32 @@ export default function Admin() {
         <div className="jelly-panel p-4 text-center"><div className="text-4xl text-red tabular-nums">{view.active_matches}</div><div className="text-sm text-muted">진행 중 매치</div></div>
       </div>
 
+      {!closed && (
+        <label className="jelly-panel mt-4 flex cursor-pointer items-center justify-between gap-3 !rounded-2xl p-4">
+          <span>
+            <b className="block font-normal">방 목록에 공개</b>
+            <span className="text-sm text-muted">켜면 홈 화면의 &quot;열려 있는 방&quot; 목록에 보여요.</span>
+          </span>
+          <input
+            type="checkbox"
+            className="h-6 w-6 flex-none accent-[#3da5ff]"
+            checked={view.room.public}
+            disabled={busy}
+            aria-label="방 목록에 공개"
+            onChange={async (e) => {
+              if (!token) return
+              setBusy(true)
+              setMsg(null)
+              try {
+                await api.setRoomPublic(id, token, e.target.checked)
+                setView(await api.getRoomView(id))
+              } catch (err) { setMsg(friendly(err)) } finally { setBusy(false) }
+            }}
+          />
+        </label>
+      )}
+      {msg && !confirm && <p role="alert" className="mt-2 text-red-soft">{msg}</p>}
+
       <section className="mt-6">
         <h2 className="mb-3 text-2xl">랭킹</h2>
         <RankingList rows={view.ranking} />
