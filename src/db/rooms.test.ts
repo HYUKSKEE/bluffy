@@ -44,7 +44,7 @@ describe('공개 방 목록', () => {
     await rpc(db, u, 'join_room', a.room_id, '손님')
     await rpc(db, u, 'queue_match', a.room_id)
     await rpc(db, owner, 'close_room', b.room_id, b.admin_token)
-    await sql(db, "update card_rooms set created_at = now() - interval '7 hours' where id = $1", [c.room_id])
+    await sql(db, "update card_rooms set created_at = now() - interval '8 days' where id = $1", [c.room_id])
 
     const rows = await rpc(db, newUser(), 'list_open_rooms')
     const ids = rows.map((r: any) => r.id)

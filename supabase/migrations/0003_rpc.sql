@@ -76,7 +76,7 @@ begin
   return jsonb_build_object('public', coalesce(p_public, false));
 end $$;
 
--- 열려 있는 공개 방 목록 (최근 6시간 안에 만들어졌거나 접속한 사람이 있는 방, 최대 30개). uid/관리 토큰은 내보내지 않는다.
+-- 열려 있는 공개 방 목록 (최근 7일 안에 만들어졌거나 접속한 사람이 있는 방, 최대 30개). uid/관리 토큰은 내보내지 않는다.
 create function public.card_list_open_rooms()
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 begin
@@ -95,8 +95,8 @@ begin
                (select count(*) from card_matches m where m.room_id = r.id and m.status = 'waiting') as waiting_tables
           from card_rooms r join card_public_rooms pr on pr.room_id = r.id
          where r.status = 'open'
-           and (r.created_at > now() - interval '6 hours'
-                or exists (select 1 from card_players p where p.room_id = r.id and p.last_seen > now() - interval '6 hours'))
+           and (r.created_at > now() - interval '7 days'
+                or exists (select 1 from card_players p where p.room_id = r.id and p.last_seen > now() - interval '7 days'))
          order by r.created_at desc
          limit 30
       ) t
